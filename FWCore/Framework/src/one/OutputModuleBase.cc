@@ -223,6 +223,23 @@ namespace edm {
       endJob();
     }
     
+    bool OutputModuleBase::needToRunSelection() const {
+      return !wantAllEvents_;
+    }
+
+    std::vector<ProductResolverIndexAndSkipBit>
+    OutputModuleBase::productsUsedBySelection() const {
+      std::vector<ProductResolverIndexAndSkipBit> returnValue;
+      auto const& s = selectors_[0];
+      auto const n = s.numberOfTokens();
+      returnValue.reserve(n);
+      
+      for(unsigned int i=0; i< n;++i) {
+        returnValue.emplace_back(uncheckedIndexFrom(s.token(i)));
+      }
+      return returnValue;
+    }
+    
     bool OutputModuleBase::prePrefetchSelection(StreamID id, EventPrincipal const& ep, ModuleCallingContext const* mcc) {
       if(wantAllEvents_) return true;
       auto& s = selectors_[id.value()];
@@ -315,27 +332,6 @@ namespace edm {
     
     void OutputModuleBase::doRespondToCloseInputFile(FileBlock const& fb) {
       doRespondToCloseInputFile_(fb);
-    }
-    
-    void
-    OutputModuleBase::doPreForkReleaseResources() {
-      preForkReleaseResources();
-    }
-    
-    void
-    OutputModuleBase::doPostForkReacquireResources(unsigned int iChildIndex, unsigned int iNumberOfChildren) {
-      postForkReacquireResources(iChildIndex, iNumberOfChildren);
-    }
-    
-    void
-    OutputModuleBase::preForkReleaseResources() {}
-    
-    void
-    OutputModuleBase::postForkReacquireResources(unsigned int /*iChildIndex*/, unsigned int /*iNumberOfChildren*/) {}
-
-    
-    void OutputModuleBase::maybeOpenFile() {
-      if(!isFileOpen()) reallyOpenFile();
     }
     
     void OutputModuleBase::doCloseFile() {

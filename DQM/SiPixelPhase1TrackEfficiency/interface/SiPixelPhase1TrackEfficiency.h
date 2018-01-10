@@ -17,18 +17,22 @@ class SiPixelPhase1TrackEfficiency : public SiPixelPhase1Base {
   enum {
     VALID,
     MISSING,
+    INACTIVE,
     EFFICIENCY,
     VERTICES
   };
 
   public:
   explicit SiPixelPhase1TrackEfficiency(const edm::ParameterSet& conf);
-  void analyze(const edm::Event&, const edm::EventSetup&);
+  void analyze(const edm::Event&, const edm::EventSetup&) override;
 
   private:
   edm::EDGetTokenT<edmNew::DetSetVector<SiPixelCluster> > clustersToken_;
   edm::EDGetTokenT<reco::TrackCollection> tracksToken_;
   edm::EDGetTokenT<reco::VertexCollection> vtxToken_;
+
+  bool applyVertexCut_;
+  
 };
 
 #endif

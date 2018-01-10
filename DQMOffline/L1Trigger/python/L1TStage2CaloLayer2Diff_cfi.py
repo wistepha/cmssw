@@ -13,7 +13,7 @@ plots = {
     'jet': [
         "efficiencyJetEt_HB", "efficiencyJetEt_HE", "efficiencyJetEt_HF",
         "efficiencyJetEt_HB_HE"],
-    'met': ['efficiencyMET'],
+    'met': ['efficiencyMET', 'efficiencyETMHF'],
     'mht': ['efficiencyMHT'],
     'ett': ['efficiencyETT'],
     'htt': ['efficiencyHTT'],
@@ -33,12 +33,15 @@ resolution_plots = [
     "resolutionJetET_HB", "resolutionJetET_HE", "resolutionJetET_HF",
     "resolutionJetET_HB_HE", "resolutionJetPhi_HB", "resolutionJetPhi_HE",
     "resolutionJetPhi_HF", "resolutionJetPhi_HB_HE", "resolutionJetEta",
-    "resolutionMET", "resolutionMHT", "resolutionETT", "resolutionHTT",
-    "resolutionMETPhi", "resolutionMHTPhi",
+    # energy sums
+    "resolutionMET", "resolutionETMHF", "resolutionMHT", "resolutionETT",
+    "resolutionHTT", "resolutionMETPhi", "resolutionETMHFPhi",
+    "resolutionMHTPhi",
 ]
 plots2D = [
-    "L1METvsCaloMET", 'L1MHTvsRecoMHT', 'L1ETTvsCaloETT', 'L1HTTvsRecoHTT',
-    'L1METPhivsCaloMETPhi', 'L1MHTPhivsRecoMHTPhi',
+    'L1METvsCaloMET', 'L1ETMHFvsCaloETMHF', 'L1MHTvsRecoMHT', 'L1ETTvsCaloETT',
+    'L1HTTvsRecoHTT', 'L1METPhivsCaloMETPhi', 'L1ETMHFPhivsCaloETMHFPhi',
+    'L1MHTPhivsRecoMHTPhi',
     # jets
     'L1JetETvsCaloJetET_HB', 'L1JetETvsCaloJetET_HE', 'L1JetETvsCaloJetET_HF',
     'L1JetETvsCaloJetET_HB_HE', 'L1JetPhivsCaloJetPhi_HB', 'L1JetPhivsCaloJetPhi_HE',
@@ -61,3 +64,26 @@ l1tStage2CaloLayer2EmuDiff = l1tDiffHarvesting.clone(
         ),
     )
 )
+
+# modifications for the pp reference run
+variables_HI = variables
+variables_HI['jet'] = L1TStep1.jetEfficiencyThresholds_HI
+
+allEfficiencyPlots_HI = []
+add_plot = allEfficiencyPlots_HI.append
+for variable, thresholds in variables_HI.iteritems():
+    for plot in plots[variable]:
+        for threshold in thresholds:
+            plotName = '{0}_threshold_{1}'.format(plot, threshold)
+            add_plot(plotName)
+
+allPlots_HI = []
+allPlots_HI.extend(allEfficiencyPlots_HI)
+allPlots_HI.extend(resolution_plots)
+allPlots_HI.extend(plots2D)
+
+from Configuration.Eras.Modifier_ppRef_2017_cff import ppRef_2017
+ppRef_2017.toModify(l1tStage2CaloLayer2EmuDiff,
+    plotCfgs = {0:dict(plots = allPlots_HI)}
+)
+

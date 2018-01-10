@@ -21,7 +21,7 @@ public:
   class PuppiUserInfo : public fastjet::PseudoJet::UserInfoBase {
    public : 
      PuppiUserInfo( int puppi_register = -1) : puppi_register_(puppi_register) {}
-     virtual ~PuppiUserInfo(){}
+     ~PuppiUserInfo() override{}
   
      void set_puppi_register(int i) { puppi_register_ = i; }
   
@@ -76,6 +76,7 @@ protected:
     double fNeutralMinPt;
     double fNeutralSlope;
     double fPuppiWeightCut;
+    double fPtMax;
     int    fNAlgos;
     int    fNPV;
     double fPVFrac;

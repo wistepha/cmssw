@@ -51,18 +51,18 @@ void L1TEfficiencyPlotHandler::book(DQMStore::IBooker &ibooker, DQMStore::IGette
 
   if (!num || !den) {
 
-    edm::LogError("L1TEfficiencyPlotHandler")
+    edm::LogWarning("L1TEfficiencyPlotHandler")
         << (!num && !den ? numeratorName + " && " + denominatorName : !num ? numeratorName : denominatorName)
         << " not gettable. Quitting booking" << endl;
     return;
   }
 
-  TH1F *numH = num->getTH1F();
-  TH1F *denH = den->getTH1F();
+  TH1 *numH = num->getTH1();
+  TH1 *denH = den->getTH1();
 
   if (!numH || !denH) {
 
-    edm::LogError("L1TEfficiencyPlotHandler")
+    edm::LogWarning("L1TEfficiencyPlotHandler")
         << (!numH && !denH ? numeratorName + " && " + denominatorName : !num ? numeratorName : denominatorName)
         << " is not TH1F. Quitting booking" << endl;
 
@@ -70,21 +70,38 @@ void L1TEfficiencyPlotHandler::book(DQMStore::IBooker &ibooker, DQMStore::IGette
 
   }
 
-  int nBinsNum = numH->GetNbinsX();
-  int nBinsDen = denH->GetNbinsX();
-
-  if (nBinsNum != nBinsDen) {
-    edm::LogError("L1TEfficiencyPlotHandler") << " # bins in " << numeratorName << " and " << denominatorName
-        << " are different. Quitting booking" << endl;
+  if (numH->GetNbinsX() != denH->GetNbinsX()) {
+    edm::LogWarning(
+      "L1TEfficiencyPlotHandler") << " # X bins in " <<
+      numeratorName << " and " << denominatorName <<
+      " are different. Quitting booking" << endl;
     return;
   }
 
-  double min = numH->GetXaxis()->GetXmin();
-  double max = numH->GetXaxis()->GetXmax();
+  MonitorElement::Kind kind = num->kind();
+  bool is1D = kind == MonitorElement::DQM_KIND_TH1F ||
+              kind == MonitorElement::DQM_KIND_TH1D;
+  bool is2D = kind == MonitorElement::DQM_KIND_TH2F ||
+              kind == MonitorElement::DQM_KIND_TH2D;
+
+  if (is2D) {
+    if (numH->GetNbinsY() != denH->GetNbinsY()) {
+      edm::LogWarning(
+        "L1TEfficiencyPlotHandler") << " # Y bins in " << numeratorName <<
+        " and " << denominatorName << " are different. Quitting booking" <<
+        endl;
+      return;
+    }
+  }
 
   ibooker.setCurrentFolder(outputDir_);
-  h_efficiency_ = ibooker.book1D(plotName_, plotName_, nBinsNum, min, max);
-
+  if (is1D) {
+    h_efficiency_ = ibooker.book1D(plotName_, den->getTH1F());
+  }
+  else if (is2D) {
+    h_efficiency_ = ibooker.book2D(plotName_, den->getTH2F());
+  }
+  h_efficiency_->setEfficiencyFlag();
 }
 
 void L1TEfficiencyPlotHandler::computeEfficiency(DQMStore::IBooker &ibooker, DQMStore::IGetter &igetter)
@@ -97,13 +114,9 @@ void L1TEfficiencyPlotHandler::computeEfficiency(DQMStore::IBooker &ibooker, DQM
   MonitorElement *num = igetter.get(numeratorDir_ + "/" + plotName_ + numeratorSuffix_);
   MonitorElement *den = igetter.get(denominatorDir_ + "/" + plotName_ + denominatorSuffix_);
 
-  TH1F *numH = num->getTH1F();
-  TH1F *denH = den->getTH1F();
-
-  numH->Sumw2();
-  denH->Sumw2();
-
-  TH1F *effH = h_efficiency_->getTH1F();
+  TH1 *numH = num->getTH1();
+  TH1 *denH = den->getTH1();
+  TH1 *effH = h_efficiency_->getTH1();
 
   effH->Divide(numH, denH, 1.0, 1.0, "B");
 }

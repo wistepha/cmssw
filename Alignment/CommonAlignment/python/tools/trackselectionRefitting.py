@@ -12,6 +12,7 @@ def getSequence(process, collection,
                 cosmicsZeroTesla = True,
                 momentumConstraint = None,
                 cosmicTrackSplitting = False,
+                isPVValidation = False,
                 use_d0cut = True):
     """This function returns a cms.Sequence containing as last element the
     module 'FinalTrackRefitter', which can be used as cms.InputTag for
@@ -42,6 +43,8 @@ def getSequence(process, collection,
                             to provide here the name of the constraint module.
     - `cosmicTrackSplitting`: If set to 'True' cosmic tracks are split before the
                               second track refitter.
+    - `isPVValidation`: If set to 'True' most of the selection cuts are overridden
+                        to allow unbiased selection of tracks for vertex refitting 
     - `use_d0cut`: If 'True' (default), apply a cut |d0| < 50.
     """
 
@@ -210,6 +213,27 @@ def getSequence(process, collection,
         options["TrackHitFilter"]["Tracker"].update({
                 "minimumHits": 10,
                 })
+    elif collection == "ALCARECOTkAlJpsiMuMu":
+        options["TrackSelector"]["Alignment"].update({
+                "ptMin": 1.0,
+                "etaMin": -2.4,
+                "etaMax": 2.4,
+                "nHitMin": 10,
+                "applyMultiplicityFilter": True,
+                "minMultiplicity": 2,
+                "maxMultiplicity": 2,
+                ("minHitsPerSubDet", "inPIXEL"): 1,
+                ("TwoBodyDecaySelector", "applyChargeFilter"): True,
+                ("TwoBodyDecaySelector", "charge"): 0,
+                ("TwoBodyDecaySelector",
+                 "applyMassrangeFilter"): not openMassWindow,
+                ("TwoBodyDecaySelector", "minXMass"): 2.7,
+                ("TwoBodyDecaySelector", "maxXMass"): 3.4,
+                ("TwoBodyDecaySelector", "daughterMass"): 0.105
+                })
+        options["TrackHitFilter"]["Tracker"].update({
+                "minimumHits": 10,
+                })
     else:
         raise ValueError("Unknown input track collection: {}".format(collection))
 
@@ -251,6 +275,25 @@ def getSequence(process, collection,
                                              "clone": True})]
         if isCosmics: mods = mods[1:] # skip high purity selector for cosmics
 
+    #############################
+    ## PV Validation cuts tune ##                 
+    #############################
+
+    if isPVValidation:
+        options["TrackSelector"]["HighPurity"].update({
+                "trackQualities": [],
+                "pMin": 0.
+                })
+        options["TrackSelector"]["Alignment"].update({
+                "pMin" :      0.,      
+                "ptMin" :     0.,       
+                "nHitMin2D" : 0,       
+                "nHitMin"   : 0,       
+                "d0Min" : -999999.0,
+                "d0Max" :  999999.0,
+                "dzMin" : -999999.0,
+                "dzMax" :  999999.0
+                })
 
     ################################
     ## apply momentum constraint? ##
@@ -258,10 +301,17 @@ def getSequence(process, collection,
 
     if momentumConstraint is not None:
         for mod in options["TrackRefitter"]:
-            options["TrackRefitter"][mod].update({
-                "constraint": "momentum",
-                "srcConstr": momentumConstraint
-                })
+            momconstrspecs = momentumConstraint.split(',')
+            if len(momconstrspecs)==1:
+                options["TrackRefitter"][mod].update({
+                    "constraint": "momentum",
+                    "srcConstr": momconstrspecs[0]
+                    })
+            else:
+                options["TrackRefitter"][mod].update({
+                    "constraint": momconstrspecs[1],
+                    "srcConstr": momconstrspecs[0]
+                    })
 
 
 
@@ -295,7 +345,19 @@ def getSequence(process, collection,
         modules.append(getattr(process, src))
 
     moduleSum = process.offlineBeamSpot        # first element of the sequence
-    for module in modules: moduleSum += module # append the other modules
+    for module in modules:
+        # Spply srcConstr fix here
+        if hasattr(module,"srcConstr"):
+           strSrcConstr = module.srcConstr.getModuleLabel()
+           if strSrcConstr:
+               procsrcconstr = getattr(process,strSrcConstr)
+               if procsrcconstr.src != module.src:
+                  module.srcConstr=''
+                  module.constraint=''
+               else:
+                  moduleSum += procsrcconstr
+
+        moduleSum += module # append the other modules
 
     return cms.Sequence(moduleSum)
 

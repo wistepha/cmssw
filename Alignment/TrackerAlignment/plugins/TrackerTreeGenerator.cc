@@ -51,7 +51,6 @@
 #include "Geometry/Records/interface/PTrackerParametersRcd.h"
 #include "Geometry/CommonDetUnit/interface/TrackingGeometry.h"
 #include "Geometry/CommonDetUnit/interface/GeomDet.h"
-#include "Geometry/CommonDetUnit/interface/GeomDetUnit.h"
 #include "Geometry/TrackerGeometryBuilder/interface/StripGeomDetUnit.h"
 #include "Geometry/CommonTopologies/interface/StripTopology.h"
 
@@ -66,12 +65,12 @@
 class TrackerTreeGenerator : public edm::one::EDAnalyzer<edm::one::SharedResources> {
 public:
   explicit TrackerTreeGenerator(const edm::ParameterSet&);
-  ~TrackerTreeGenerator() = default;
+  ~TrackerTreeGenerator() override = default;
 
 private:
-  virtual void beginJob() override;
-  virtual void analyze(const edm::Event&, const edm::EventSetup&) override;
-  virtual void endJob() override;
+  void beginJob() override;
+  void analyze(const edm::Event&, const edm::EventSetup&) override;
+  void endJob() override;
 
   // ----------member data ---------------------------
 

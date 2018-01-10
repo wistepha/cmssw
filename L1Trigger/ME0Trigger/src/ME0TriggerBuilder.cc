@@ -31,7 +31,7 @@ ME0TriggerBuilder::~ME0TriggerBuilder()
 {
 }
 
-void ME0TriggerBuilder::build(const ME0PadDigiCollection* me0Pads,
+void ME0TriggerBuilder::build(const ME0PadDigiClusterCollection* me0Pads,
 			      ME0TriggerDigiCollection& oc_trig)
 {
   for (int endc = 0; endc < 2; endc++)
@@ -46,7 +46,7 @@ void ME0TriggerBuilder::build(const ME0PadDigiCollection* me0Pads,
       ME0DetId detid(region, 0, cham, 0);
 
       // Run processors only if chamber exists in geometry.
-      if (tmb == 0 || me0_g->chamber(detid) == 0) continue;
+      if (tmb == nullptr || me0_g->chamber(detid) == nullptr) continue;
       
       tmb->run(me0Pads);
       
@@ -63,3 +63,4 @@ void ME0TriggerBuilder::build(const ME0PadDigiCollection* me0Pads,
     } 
   }
 }
+

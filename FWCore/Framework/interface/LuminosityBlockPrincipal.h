@@ -42,9 +42,9 @@ namespace edm {
         unsigned int index,
         bool isForPrimaryProcess=true);
 
-    ~LuminosityBlockPrincipal() {}
+    ~LuminosityBlockPrincipal() override {}
 
-    void fillLuminosityBlockPrincipal(ProcessHistoryRegistry const& processHistoryRegistry, DelayedReader* reader = 0);
+    void fillLuminosityBlockPrincipal(ProcessHistoryRegistry const& processHistoryRegistry, DelayedReader* reader = nullptr);
 
     RunPrincipal const& runPrincipal() const {
       return *runPrincipal_;
@@ -98,6 +98,8 @@ namespace edm {
         BranchDescription const& bd,
         std::unique_ptr<WrapperBase> edp) const;
 
+    void put(ProductResolverIndex index,
+             std::unique_ptr<WrapperBase> edp) const;
 
     void setComplete() {
       complete_ = true;
@@ -105,9 +107,9 @@ namespace edm {
 
   private:
 
-    virtual bool isComplete_() const override {return complete_;}
+    bool isComplete_() const override {return complete_;}
 
-    virtual unsigned int transitionIndex_() const override;
+    unsigned int transitionIndex_() const override;
 
     edm::propagate_const<std::shared_ptr<RunPrincipal>> runPrincipal_;
 

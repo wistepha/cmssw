@@ -4,7 +4,7 @@
   <use   name="FWCore/ParameterSet"/>
   <use   name="FWCore/Utilities"/>
   <use   name="DataFormats/FEDRawData"/>
-  <use   name="EventFilter/FEDInterface"/>
+  <use   name="DataFormats/TCDS"/>
   <use   name="EventFilter/Utilities"/>
   <use   name="boost"/>
   <flags   EDM_PLUGIN="1"/>

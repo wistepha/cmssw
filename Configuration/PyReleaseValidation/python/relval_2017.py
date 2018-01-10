@@ -17,9 +17,11 @@ workflows = Matrix()
 #   2017 (ele guns 10, 35, 1000; pho guns 10, 35; mu guns 1, 10, 100, 1000, QCD 3TeV, QCD Flat)
 #   2017 (ZMM, TTbar, ZEE, MinBias, TTbar PU, ZEE PU, TTbar design)
 #   2018 (ZMM, TTbar, ZEE, MinBias, TTbar PU, ZEE PU, TTbar design)
+#   2019 (ZMM, TTbar, ZEE, MinBias, TTbar PU, ZEE PU, TTbar design)
 numWFIB = [10001.0,10002.0,10003.0,10004.0,10005.0,10006.0,10007.0,10008.0,10009.0,10059.0,10071.0,
            10042.0,10024.0,10025.0,10026.0,10023.0,10224.0,10225.0,10424.0,
-           10842.0,10824.0,10825.0,10826.0,10823.0,11024.0,11025.0,11224.0]
+           10842.0,10824.0,10825.0,10826.0,10823.0,11024.0,11025.0,11224.0,
+           11642.0,11624.0,11625.0,11626.0,11623.0,11824.0,11825.0,12024.0]
 for i,key in enumerate(upgradeKeys[2017]):
     numWF=numWFAll[2017][i]
     for frag in upgradeFragments:
@@ -45,6 +47,16 @@ def _trackingOnly(stepList):
             continue
         res.append(s)
     return res
+def _pixelTrackingOnly(stepList):
+    res = []
+    for step in stepList:
+        s = step
+        if 'RecoFull' in step or 'HARVESTFull' in step:
+            s = s.replace('Full', 'Full_pixelTrackingOnly')
+        if 'ALCA' in s:
+            continue
+        res.append(s)
+    return res
 def _trackingRun2(stepList):
     res = []
     for step in stepList:
@@ -54,19 +66,6 @@ def _trackingRun2(stepList):
                 s = s.replace('Only', 'OnlyRun2')
             else:
                 s = s.replace('Full', 'Full_trackingRun2')
-        if 'ALCA' in s:
-            continue
-        res.append(s)
-    return res
-def _trackingPhase1QuadProp(stepList):
-    res = []
-    for step in stepList:
-        s = step
-        if 'RecoFull' in step:
-            if 'trackingOnly' in step:
-                s = s.replace('Only', 'OnlyPhase1QuadProp')
-            else:
-                s = s.replace('Full', 'Full_trackingPhase1QuadProp')
         if 'ALCA' in s:
             continue
         res.append(s)
@@ -91,6 +90,8 @@ def _trackingLowPU(stepList):
 workflows[10024.1] = [ workflows[10024.0][0], _trackingOnly(workflows[10024.0][1]) ]
 workflows[10024.2] = [ workflows[10024.0][0], _trackingRun2(workflows[10024.0][1]) ]
 workflows[10024.3] = [ workflows[10024.1][0], _trackingRun2(workflows[10024.1][1]) ]
-workflows[10024.4] = [ workflows[10024.0][0], _trackingPhase1QuadProp(workflows[10024.0][1]) ]
-workflows[10024.5] = [ workflows[10024.1][0], _trackingPhase1QuadProp(workflows[10024.1][1]) ]
-workflows[10024.6] = [ workflows[10024.0][0], _trackingLowPU(workflows[10024.0][1]) ]
+workflows[10024.4] = [ workflows[10024.0][0], _trackingLowPU(workflows[10024.0][1]) ]
+workflows[10024.5] = [ workflows[10024.0][0], _pixelTrackingOnly(workflows[10024.0][1]) ]
+# for 2018 as well, use the same numbering
+workflows[10824.1] = [ workflows[10824.0][0], _trackingOnly(workflows[10024.0][1]) ]
+workflows[10824.5] = [ workflows[10824.0][0], _pixelTrackingOnly(workflows[10024.0][1]) ]

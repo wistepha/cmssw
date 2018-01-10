@@ -53,7 +53,7 @@ namespace {
   class KFFittingSmoother final : public TrajectoryFitter, private KFFittingSmootherParam {
     
   public:
-    ~KFFittingSmoother() {}
+    ~KFFittingSmoother() override {}
 
   private:
     KFFittingSmoother(const TrajectoryFitter& aFitter,
@@ -100,7 +100,7 @@ namespace {
     }
     
     
-    virtual void setHitCloner(TkCloner const * hc) override {
+    void setHitCloner(TkCloner const * hc) override {
       theFitter->setHitCloner(hc);
       theSmoother->setHitCloner(hc);
     }
@@ -118,7 +118,7 @@ namespace {
     Trajectory smoothingStep(Trajectory && fitted) const {
       if (theEstimateCut>0) {
 	// remove "outlier" at the end of Traj
-	while (!fitted.empty() &&
+	while (!fitted.empty() && fitted.foundHits()>=theMinNumberOfHits &&
 	       ( !fitted.lastMeasurement().recHitR().isValid()
 		 || ( fitted.lastMeasurement().recHitR().det()!=nullptr && fitted.lastMeasurement().estimate()>theEstimateCut)
 		 )

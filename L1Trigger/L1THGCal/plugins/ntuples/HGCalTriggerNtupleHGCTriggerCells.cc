@@ -1,6 +1,7 @@
 
 #include "DataFormats/L1THGCal/interface/HGCalTriggerCell.h"
 #include "DataFormats/ForwardDetId/interface/HGCalDetId.h"
+#include "Geometry/Records/interface/CaloGeometryRecord.h"
 #include "L1Trigger/L1THGCal/interface/HGCalTriggerGeometryBase.h"
 #include "L1Trigger/L1THGCal/interface/HGCalTriggerNtupleBase.h"
 
@@ -11,12 +12,12 @@ class HGCalTriggerNtupleHGCTriggerCells : public HGCalTriggerNtupleBase
 
   public:
     HGCalTriggerNtupleHGCTriggerCells(const edm::ParameterSet& conf);
-    ~HGCalTriggerNtupleHGCTriggerCells(){};
-    virtual void initialize(TTree&, const edm::ParameterSet&, edm::ConsumesCollector&&) override final;
-    virtual void fill(const edm::Event& e, const edm::EventSetup& es) override final;
+    ~HGCalTriggerNtupleHGCTriggerCells() override{};
+    void initialize(TTree&, const edm::ParameterSet&, edm::ConsumesCollector&&) final;
+    void fill(const edm::Event& e, const edm::EventSetup& es) final;
 
   private:
-    virtual void clear() override final;
+    void clear() final;
 
 
     edm::EDGetToken trigger_cells_token_;
@@ -81,7 +82,7 @@ fill(const edm::Event& e, const edm::EventSetup& es)
 
   // retrieve geometry
   edm::ESHandle<HGCalTriggerGeometryBase> geometry;
-  es.get<IdealGeometryRecord>().get(geometry);
+  es.get<CaloGeometryRecord>().get(geometry);
 
   clear();
   for(auto tc_itr=trigger_cells.begin(0); tc_itr!=trigger_cells.end(0); tc_itr++)

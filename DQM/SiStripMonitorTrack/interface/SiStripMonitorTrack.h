@@ -63,9 +63,9 @@ public:
   typedef TrackingRecHit::ConstRecHitPointer ConstRecHitPointer;
   enum RecHitType { Single=0, Matched=1, Projected=2, Null=3};
   explicit SiStripMonitorTrack(const edm::ParameterSet&);
-  ~SiStripMonitorTrack();
+  ~SiStripMonitorTrack() override;
   void dqmBeginRun(const edm::Run& run, const edm::EventSetup& es)  override;
-  virtual void analyze(const edm::Event&, const edm::EventSetup&) override;
+  void analyze(const edm::Event&, const edm::EventSetup&) override;
   void bookHistograms(DQMStore::IBooker &, edm::Run const &, edm::EventSetup const &) override;
 
 private:
@@ -77,7 +77,7 @@ private:
   struct Det2MEs;
 
   //booking
-  void book(DQMStore::IBooker &, const TrackerTopology* tTopo);
+  void book(DQMStore::IBooker &, const TrackerTopology* tTopo, const TkDetMap* tkDetMap);
   void bookModMEs(DQMStore::IBooker &, const uint32_t );
   void bookLayerMEs(DQMStore::IBooker &, const uint32_t, std::string&);
   void bookRing(DQMStore::IBooker &, const uint32_t, std::string&);
@@ -142,14 +142,17 @@ private:
     bool ok
   );
 
+  bool fillControlViewHistos(const edm::Event& ev, const edm::EventSetup& es);
+  void return2DME(MonitorElement* input1,MonitorElement* input2, int binx, int biny, double value);
+
   // fill monitorables
 //  void fillModMEs(SiStripClusterInfo* cluster,std::string name, float cos, const uint32_t detid, const LocalVector LV);
 //  void fillMEs(SiStripClusterInfo*,const uint32_t detid, float,enum ClusterFlags,  const LocalVector LV, const Det2MEs& MEs);
 
-  inline void fillME(MonitorElement* ME,float value1){if (ME!=0)ME->Fill(value1);}
-  inline void fillME(MonitorElement* ME,float value1,float value2){if (ME!=0)ME->Fill(value1,value2);}
-  inline void fillME(MonitorElement* ME,float value1,float value2,float value3){if (ME!=0)ME->Fill(value1,value2,value3);}
-  inline void fillME(MonitorElement* ME,float value1,float value2,float value3,float value4){if (ME!=0)ME->Fill(value1,value2,value3,value4);}
+  inline void fillME(MonitorElement* ME,float value1){if (ME!=nullptr)ME->Fill(value1);}
+  inline void fillME(MonitorElement* ME,float value1,float value2){if (ME!=nullptr)ME->Fill(value1,value2);}
+  inline void fillME(MonitorElement* ME,float value1,float value2,float value3){if (ME!=nullptr)ME->Fill(value1,value2,value3);}
+  inline void fillME(MonitorElement* ME,float value1,float value2,float value3,float value4){if (ME!=nullptr)ME->Fill(value1,value2,value3,value4);}
 
   Det2MEs findMEs(const TrackerTopology* tTopo, const uint32_t detid);
 
@@ -163,9 +166,10 @@ private:
   std::string topFolderName_;
 
   //******* TkHistoMaps
-  TkHistoMap *tkhisto_StoNCorrOnTrack, *tkhisto_NumOnTrack, *tkhisto_NumOffTrack;
-  TkHistoMap *tkhisto_ClChPerCMfromOrigin, *tkhisto_ClChPerCMfromTrack;
-  TkHistoMap *tkhisto_NumMissingHits, *tkhisto_NumberInactiveHits, *tkhisto_NumberValidHits;
+  std::unique_ptr<TkHistoMap> tkhisto_StoNCorrOnTrack, tkhisto_NumOnTrack, tkhisto_NumOffTrack;
+  std::unique_ptr<TkHistoMap> tkhisto_ClChPerCMfromOrigin, tkhisto_ClChPerCMfromTrack;
+  std::unique_ptr<TkHistoMap> tkhisto_NumMissingHits, tkhisto_NumberInactiveHits, tkhisto_NumberValidHits;
+  std::unique_ptr<TkHistoMap> tkhisto_NoiseOnTrack, tkhisto_NoiseOffTrack, tkhisto_ClusterWidthOnTrack, tkhisto_ClusterWidthOffTrack;
   //******** TkHistoMaps
   int numTracks;
 
@@ -288,5 +292,28 @@ private:
   SiStripDCSStatus* dcsStatus_;
   GenericTriggerEventFlag* genTriggerEventFlag_;
   SiStripFolderOrganizer folderOrganizer_;
+
+
+  // control view plots
+  MonitorElement* ClusterStoNCorr_OnTrack_TIBTID = nullptr;
+  MonitorElement* ClusterStoNCorr_OnTrack_TOB    = nullptr;
+  MonitorElement* ClusterStoNCorr_OnTrack_TECM   = nullptr;
+  MonitorElement* ClusterStoNCorr_OnTrack_TECP   = nullptr;
+  MonitorElement* ClusterStoNCorr_OnTrack_FECCratevsFECSlot = nullptr;
+  MonitorElement* ClusterStoNCorr_OnTrack_FECSlotVsFECRing_TIBTID = nullptr;
+  MonitorElement* ClusterStoNCorr_OnTrack_FECSlotVsFECRing_TOB    = nullptr;
+  MonitorElement* ClusterStoNCorr_OnTrack_FECSlotVsFECRing_TECM   = nullptr;
+  MonitorElement* ClusterStoNCorr_OnTrack_FECSlotVsFECRing_TECP   = nullptr;
+  
+  MonitorElement* ClusterCount_OnTrack_FECCratevsFECSlot = nullptr;
+  MonitorElement* ClusterCount_OnTrack_FECSlotVsFECRing_TIBTID = nullptr;
+  MonitorElement* ClusterCount_OnTrack_FECSlotVsFECRing_TOB    = nullptr;
+  MonitorElement* ClusterCount_OnTrack_FECSlotVsFECRing_TECM   = nullptr;
+  MonitorElement* ClusterCount_OnTrack_FECSlotVsFECRing_TECP   = nullptr;
+  
+  
+  
+
+
 };
 #endif

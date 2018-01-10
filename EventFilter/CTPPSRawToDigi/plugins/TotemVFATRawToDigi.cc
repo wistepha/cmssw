@@ -39,10 +39,10 @@ class TotemVFATRawToDigi : public edm::stream::EDProducer<>
 {
   public:
     explicit TotemVFATRawToDigi(const edm::ParameterSet&);
-    ~TotemVFATRawToDigi();
+    ~TotemVFATRawToDigi() override;
 
-    virtual void produce(edm::Event&, const edm::EventSetup&) override;
-    virtual void endStream() override;
+    void produce(edm::Event&, const edm::EventSetup&) override;
+    void endStream() override;
 
   private:
     std::string subSystemName;
@@ -53,7 +53,7 @@ class TotemVFATRawToDigi : public edm::stream::EDProducer<>
 
     edm::EDGetTokenT<FEDRawDataCollection> fedDataToken;
 
-    RawDataUnpacker rawDataUnpacker;
+    ctpps::RawDataUnpacker rawDataUnpacker;
     RawToDigiConverter rawToDigiConverter;
 
     template <typename DigiType>

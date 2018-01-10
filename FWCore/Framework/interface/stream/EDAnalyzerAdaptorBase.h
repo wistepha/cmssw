@@ -72,6 +72,11 @@ namespace edm {
       // ---------- member functions ---------------------------
       const ModuleDescription& moduleDescription() const { return moduleDescription_;}
       
+      virtual bool wantsGlobalRuns() const = 0;
+      virtual bool wantsGlobalLuminosityBlocks() const = 0;
+      bool wantsStreamRuns() const {return true;}
+      bool wantsStreamLuminosityBlocks() const {return true;}
+
       std::string workerType() const { return "WorkerT<EDAnalyzerAdaptorBase>";}
       void
       registerProductsAndCallbacks(EDAnalyzerAdaptorBase const*, ProductRegistry* reg);
@@ -99,12 +104,14 @@ namespace edm {
                                            std::map<std::string, ModuleDescription const*> const& labelsToDesc,
                                            std::string const& processName) const;
 
+      void convertCurrentProcessAlias(std::string const& processName);
+
       std::vector<ConsumesInfo> consumesInfo() const;
 
     private:
-      EDAnalyzerAdaptorBase(const EDAnalyzerAdaptorBase&); // stop default
+      EDAnalyzerAdaptorBase(const EDAnalyzerAdaptorBase&) = delete; // stop default
       
-      const EDAnalyzerAdaptorBase& operator=(const EDAnalyzerAdaptorBase&); // stop default
+      const EDAnalyzerAdaptorBase& operator=(const EDAnalyzerAdaptorBase&) = delete; // stop default
       
       bool doEvent(EventPrincipal const& ep, EventSetup const& c,
                    ActivityRegistry*,
@@ -151,14 +158,13 @@ namespace edm {
       virtual void doEndLuminosityBlock(LuminosityBlockPrincipal const& lbp, EventSetup const& c,
                                         ModuleCallingContext const*)=0;
 
-      void doPreForkReleaseResources();
-      void doPostForkReacquireResources(unsigned int iChildIndex, unsigned int iNumberOfChildren);
-
       //For now, the following are just dummy implemenations with no ability for users to override
       void doRespondToOpenInputFile(FileBlock const& fb);
       void doRespondToCloseInputFile(FileBlock const& fb);
       void doRegisterThinnedAssociations(ProductRegistry const&,
                                          ThinnedAssociationsHelper&) { }
+
+      bool hasAcquire() const { return false; }
 
       // ---------- member data --------------------------------
       void setModuleDescriptionPtr(EDAnalyzerBase* m);

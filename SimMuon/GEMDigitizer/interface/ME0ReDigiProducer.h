@@ -56,11 +56,11 @@ public:
 
   explicit ME0ReDigiProducer(const edm::ParameterSet& ps);
 
-  virtual ~ME0ReDigiProducer();
+  ~ME0ReDigiProducer() override;
 
-  virtual void beginRun(const edm::Run&, const edm::EventSetup&) override;
+  void beginRun(const edm::Run&, const edm::EventSetup&) override;
 
-  virtual void produce(edm::Event&, const edm::EventSetup&) override;
+  void produce(edm::Event&, const edm::EventSetup&) override;
 
 
   void buildDigis(const ME0DigiPreRecoCollection &,
@@ -81,6 +81,7 @@ private:
   //paramters
   const float bxWidth;              // ns
   bool         useCusGeoFor1PartGeo      ; //Use custom strips and partitions for digitization for single partition geometry
+  bool         usePads                   ; //sets strip granularity to x2 coarser
   unsigned int numberOfStrips     ; // Custom number of strips per partition
   unsigned int numberOfPartitions; // Custom number of partitions per chamber
   double       neutronAcceptance ; // fraction of neutron events to keep in event (>= 1 means no filtering)

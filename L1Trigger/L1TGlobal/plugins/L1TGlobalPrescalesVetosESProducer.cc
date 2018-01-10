@@ -13,8 +13,8 @@
 #include <iostream>
 #include <fstream>
 #include <unistd.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstdlib>
 
 #include "tmEventSetup/tmEventSetup.hh"
 #include "tmEventSetup/esTriggerMenu.hh"
@@ -383,7 +383,7 @@ L1TGlobalPrescalesVetosESProducer::produce(const L1TGlobalPrescalesVetosRcd& iRe
     }
 
     LogDebug("L1TGlobal") << " ====> Algo bx mask <=== " << std::endl;
-    if( m_initialTriggerAlgoBxMaskAlgoTrig.size()==0 ) LogDebug("L1TGlobal") << "\t(empty map)" << std::endl;
+    if( m_initialTriggerAlgoBxMaskAlgoTrig.empty() ) LogDebug("L1TGlobal") << "\t(empty map)" << std::endl;
     for( auto& it: m_initialTriggerAlgoBxMaskAlgoTrig ){
       LogDebug("L1TGlobal") << " bx = " << it.first << " : iAlg =";
       std::vector<int> masked = it.second;
@@ -396,7 +396,9 @@ L1TGlobalPrescalesVetosESProducer::produce(const L1TGlobalPrescalesVetosRcd& iRe
 
   // write the condition format to the event setup via the helper:
   using namespace edm::es;
-  std::shared_ptr<L1TGlobalPrescalesVetos> pMenu(data_.getWriteInstance());
+  // Return copy so that we don't give away our owned pointer to framework
+  auto pMenu = std::make_shared<L1TGlobalPrescalesVetos>(*data_.getWriteInstance());
+
   return pMenu;
 }
 

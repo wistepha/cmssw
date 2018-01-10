@@ -16,6 +16,7 @@ class OfflineValidation(GenericValidationData_CTSR, ParallelValidation, Validati
         "offlineModuleLevelHistsTransient": "False",
         "offlineModuleLevelProfiles": "True",
         "stripYResiduals": "False",
+        "maxtracks": "0",
         }
     deprecateddefaults = {
         "DMRMethod":"",
@@ -44,6 +45,15 @@ class OfflineValidation(GenericValidationData_CTSR, ParallelValidation, Validati
                    " set offlineModuleLevelHistsTransient to false.")
             raise AllInOneError(msg)
 
+        try:
+            self.NTracks = int(self.general["maxtracks"])
+            if self.NTracks < 0: raise ValueError
+        except ValueError:
+            raise AllInOneError("maxtracks has to be a positive integer, or 0 for no limit")
+
+        if self.NTracks / self.NJobs != float(self.NTracks) / self.NJobs:
+            raise AllInOneError("maxtracks has to be divisible by parallelJobs")
+
     @property
     def ProcessName(self):
         return "OfflineValidator"
@@ -67,7 +77,7 @@ class OfflineValidation(GenericValidationData_CTSR, ParallelValidation, Validati
         return super(OfflineValidation, self).createCrabCfg(path, self.crabCfgBaseName)
 
     def getRepMap(self, alignment = None):
-        repMap = super(OfflineValidation, self).getRepMap()
+        repMap = super(OfflineValidation, self).getRepMap(alignment)
         repMap.update({
             "nEvents": self.general["maxevents"],
             "offlineValidationMode": "Standalone",

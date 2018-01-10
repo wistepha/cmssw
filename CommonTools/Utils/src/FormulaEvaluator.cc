@@ -74,14 +74,14 @@ namespace {
   }
 
   class ConstantFinder : public ExpressionElementFinderBase {
-    virtual bool checkStart(char iSymbol) const override final {
+    bool checkStart(char iSymbol) const final {
       if( iSymbol == '-' or iSymbol == '.' or std::isdigit(iSymbol) ) {
         return true;
       }
       return false;
     }
 
-    virtual EvaluatorInfo createEvaluator(std::string::const_iterator iBegin, std::string::const_iterator iEnd) const override final {
+    EvaluatorInfo createEvaluator(std::string::const_iterator iBegin, std::string::const_iterator iEnd) const final {
       EvaluatorInfo info;
       try {
         size_t endIndex=0;
@@ -100,14 +100,14 @@ namespace {
 
 
   class ParameterFinder : public ExpressionElementFinderBase {
-    virtual bool checkStart(char iSymbol) const override final {
+    bool checkStart(char iSymbol) const final {
       if( iSymbol == '[') {
         return true;
       }
       return false;
     }
 
-    virtual EvaluatorInfo createEvaluator(std::string::const_iterator iBegin, std::string::const_iterator iEnd) const override final {
+    EvaluatorInfo createEvaluator(std::string::const_iterator iBegin, std::string::const_iterator iEnd) const final {
       EvaluatorInfo info;
       if(iEnd == iBegin) {
         return info;
@@ -138,14 +138,14 @@ namespace {
   };
   
   class VariableFinder : public ExpressionElementFinderBase {
-    virtual bool checkStart(char iSymbol) const override final {
+    bool checkStart(char iSymbol) const final {
       if( iSymbol == 'x' or iSymbol == 'y' or iSymbol == 'z' or iSymbol == 't' ) {
         return true;
       }
       return false;
     }
     
-    virtual EvaluatorInfo createEvaluator(std::string::const_iterator iBegin, std::string::const_iterator iEnd) const override final {
+    EvaluatorInfo createEvaluator(std::string::const_iterator iBegin, std::string::const_iterator iEnd) const final {
       EvaluatorInfo info;
       if(iBegin == iEnd) {
         return info;
@@ -179,11 +179,11 @@ namespace {
     FunctionFinder(ExpressionFinder const* iEF):
       m_expressionFinder(iEF) {};
 
-    virtual bool checkStart(char iSymbol) const override final {
+    bool checkStart(char iSymbol) const final {
       return std::isalpha(iSymbol);
     }
 
-    virtual EvaluatorInfo createEvaluator(std::string::const_iterator iBegin, std::string::const_iterator iEnd) const override final;
+    EvaluatorInfo createEvaluator(std::string::const_iterator iBegin, std::string::const_iterator iEnd) const final;
 
   private:
     ExpressionFinder const* m_expressionFinder;
@@ -559,20 +559,20 @@ namespace {
     return info;
   }
 
-  static const std::string k_log("log");
-  static const std::string k_log10("log10");
-  static const std::string k_TMath__Log("TMath::Log");
+  const std::string k_log("log");
+  const std::string k_log10("log10");
+  const std::string k_TMath__Log("TMath::Log");
   double const kLog10Inv = 1./std::log(10.);
-  static const std::string k_exp("exp");
-  static const std::string k_pow("pow");
-  static const std::string k_TMath__Power("TMath::Power");
-  static const std::string k_max("max");
-  static const std::string k_min("min");
-  static const std::string k_TMath__Max("TMath::Max");
-  static const std::string k_TMath__Min("TMath::Min");
-  static const std::string k_TMath__Erf("TMath::Erf");
-  static const std::string k_erf("erf");
-  static const std::string k_TMath__Landau("TMath::Landau");
+  const std::string k_exp("exp");
+  const std::string k_pow("pow");
+  const std::string k_TMath__Power("TMath::Power");
+  const std::string k_max("max");
+  const std::string k_min("min");
+  const std::string k_TMath__Max("TMath::Max");
+  const std::string k_TMath__Min("TMath::Min");
+  const std::string k_TMath__Erf("TMath::Erf");
+  const std::string k_erf("erf");
+  const std::string k_TMath__Landau("TMath::Landau");
 
 
   EvaluatorInfo 
@@ -660,7 +660,7 @@ namespace {
     return info;
   };
 
-  static ExpressionFinder const s_expressionFinder;
+  ExpressionFinder const s_expressionFinder;
   
 }
 //

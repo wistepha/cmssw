@@ -2,6 +2,11 @@ import FWCore.ParameterSet.Config as cms
 from Configuration.Eras.Modifier_tracker_apv_vfp30_2016_cff import tracker_apv_vfp30_2016 as _tracker_apv_vfp30_2016
 import RecoTracker.IterativeTracking.iterativeTkConfig as _cfg
 
+#for fastsim
+from Configuration.Eras.Modifier_fastSim_cff import fastSim
+from FastSimulation.Tracking.SeedingMigration import _hitSetProducerToFactoryPSet
+
+
 ###############################################
 # Low pT and detached tracks from pixel triplets
 ###############################################
@@ -33,8 +38,6 @@ _phase1LayerList = [
     ]
 from Configuration.Eras.Modifier_trackingPhase1_cff import trackingPhase1
 trackingPhase1.toModify(detachedTripletStepSeedLayers, layerList=_phase1LayerList)
-from Configuration.Eras.Modifier_trackingPhase1QuadProp_cff import trackingPhase1QuadProp
-trackingPhase1QuadProp.toModify(detachedTripletStepSeedLayers, layerList=_phase1LayerList)
 
 # TrackingRegion
 from RecoTracker.TkTrackingRegions.globalTrackingRegionFromBeamSpotFixedZ_cfi import globalTrackingRegionFromBeamSpotFixedZ as _globalTrackingRegionFromBeamSpotFixedZ
@@ -44,6 +47,18 @@ detachedTripletStepTrackingRegions = _globalTrackingRegionFromBeamSpotFixedZ.clo
     originRadius = 1.5
 ))
 trackingPhase1.toModify(detachedTripletStepTrackingRegions, RegionPSet = dict(ptMin = 0.25))
+
+from Configuration.Eras.Modifier_pp_on_XeXe_2017_cff import pp_on_XeXe_2017
+from RecoTracker.TkTrackingRegions.globalTrackingRegionWithVertices_cff import globalTrackingRegionWithVertices as _globalTrackingRegionWithVertices
+pp_on_XeXe_2017.toReplaceWith(detachedTripletStepTrackingRegions, 
+                              _globalTrackingRegionWithVertices.clone(RegionPSet=dict(
+            fixedError = 3.0,
+            ptMin = 0.8,
+            originRadius = 1.5
+            )
+                                                                      )
+)
+
 
 # seeding
 from RecoTracker.TkHitPairs.hitPairEDProducer_cfi import hitPairEDProducer as _hitPairEDProducer
@@ -71,6 +86,15 @@ detachedTripletStepSeeds = _seedCreatorFromRegionConsecutiveHitsTripletOnlyEDPro
         ClusterShapeCacheSrc = cms.InputTag('siPixelClusterShapeCache')
     ),
 )
+import FastSimulation.Tracking.TrajectorySeedProducer_cfi
+_fastSim_detachedTripletStepSeeds = FastSimulation.Tracking.TrajectorySeedProducer_cfi.trajectorySeedProducer.clone(
+    layerList = detachedTripletStepSeedLayers.layerList.value(),
+    trackingRegions = "detachedTripletStepTrackingRegions",
+    hitMasks = cms.InputTag("detachedTripletStepMasks"),
+    seedFinderSelector = dict( pixelTripletGeneratorFactory = _hitSetProducerToFactoryPSet(detachedTripletStepHitTriplets) )
+)
+fastSim.toReplaceWith(detachedTripletStepSeeds,_fastSim_detachedTripletStepSeeds)
+
 
 from RecoPixelVertexing.PixelTriplets.caHitTripletEDProducer_cfi import caHitTripletEDProducer as _caHitTripletEDProducer
 trackingPhase1.toModify(detachedTripletStepHitDoublets, layerPairs = [0,1]) # layer pairs (0,1), (1,2)
@@ -106,6 +130,9 @@ trackingLowPU.toReplaceWith(detachedTripletStepTrajectoryFilterBase, _detachedTr
     maxLostHitsFraction = 1./10.,
     constantValueForLostHitsFractionFilter = 0.701,
 ))
+
+pp_on_XeXe_2017.toModify(detachedTripletStepTrajectoryFilterBase, minPt=0.9)
+
 import RecoPixelVertexing.PixelLowPtUtilities.StripSubClusterShapeTrajectoryFilter_cfi
 detachedTripletStepTrajectoryFilterShape = RecoPixelVertexing.PixelLowPtUtilities.StripSubClusterShapeTrajectoryFilter_cfi.StripSubClusterShapeTrajectoryFilterTIX12.clone()
 detachedTripletStepTrajectoryFilter = cms.PSet(
@@ -166,6 +193,14 @@ detachedTripletStepTrajectoryCleanerBySharedHits = trajectoryCleanerBySharedHits
 detachedTripletStepTrackCandidates.TrajectoryCleaner = 'detachedTripletStepTrajectoryCleanerBySharedHits'
 trackingLowPU.toModify(detachedTripletStepTrajectoryCleanerBySharedHits, fractionShared = 0.19)
 
+import FastSimulation.Tracking.TrackCandidateProducer_cfi
+_fastSim_detachedTripletStepTrackCandidates = FastSimulation.Tracking.TrackCandidateProducer_cfi.trackCandidateProducer.clone(
+    src = cms.InputTag("detachedTripletStepSeeds"),
+    MinNumberOfCrossedLayers = 3,
+    hitMasks = cms.InputTag("detachedTripletStepMasks")
+    )
+fastSim.toReplaceWith(detachedTripletStepTrackCandidates,_fastSim_detachedTripletStepTrackCandidates)
+
 
 # TRACK FITTING
 import RecoTracker.TrackProducer.TrackProducer_cfi
@@ -174,6 +209,7 @@ detachedTripletStepTracks = RecoTracker.TrackProducer.TrackProducer_cfi.TrackPro
     src = 'detachedTripletStepTrackCandidates',
     Fitter = cms.string('FlexibleKFFittingSmoother')
     )
+fastSim.toModify(detachedTripletStepTracks,TTRHBuilder = 'WithoutRefit')
 
 # TRACK SELECTION AND QUALITY FLAG SETTING.
 
@@ -182,23 +218,22 @@ from RecoTracker.FinalTrackSelectors.TrackMVAClassifierPrompt_cfi import *
 from RecoTracker.FinalTrackSelectors.TrackMVAClassifierDetached_cfi import *
 detachedTripletStepClassifier1 = TrackMVAClassifierDetached.clone()
 detachedTripletStepClassifier1.src = 'detachedTripletStepTracks'
-detachedTripletStepClassifier1.GBRForestLabel = 'MVASelectorIter3_13TeV'
+detachedTripletStepClassifier1.mva.GBRForestLabel = 'MVASelectorIter3_13TeV'
 detachedTripletStepClassifier1.qualityCuts = [-0.5,0.0,0.5]
+fastSim.toModify(detachedTripletStepClassifier1,vertices = "firstStepPrimaryVerticesBeforeMixing")
+
 detachedTripletStepClassifier2 = TrackMVAClassifierPrompt.clone()
 detachedTripletStepClassifier2.src = 'detachedTripletStepTracks'
-detachedTripletStepClassifier2.GBRForestLabel = 'MVASelectorIter0_13TeV'
+detachedTripletStepClassifier2.mva.GBRForestLabel = 'MVASelectorIter0_13TeV'
 detachedTripletStepClassifier2.qualityCuts = [-0.2,0.0,0.4]
+fastSim.toModify(detachedTripletStepClassifier2,vertices = "firstStepPrimaryVerticesBeforeMixing")
 
 from RecoTracker.FinalTrackSelectors.ClassifierMerger_cfi import *
 detachedTripletStep = ClassifierMerger.clone()
 detachedTripletStep.inputClassifiers=['detachedTripletStepClassifier1','detachedTripletStepClassifier2']
 
 trackingPhase1.toReplaceWith(detachedTripletStep, detachedTripletStepClassifier1.clone(
-     GBRForestLabel = 'MVASelectorDetachedTripletStep_Phase1',
-     qualityCuts = [-0.2,0.3,0.8],
-))
-trackingPhase1QuadProp.toReplaceWith(detachedTripletStep, detachedTripletStepClassifier1.clone(
-     GBRForestLabel = 'MVASelectorDetachedTripletStep_Phase1',
+     mva = dict(GBRForestLabel = 'MVASelectorDetachedTripletStep_Phase1'),
      qualityCuts = [-0.2,0.3,0.8],
 ))
 
@@ -300,16 +335,30 @@ trackingLowPU.toReplaceWith(detachedTripletStep, RecoTracker.FinalTrackSelectors
     writeOnlyTrkQuals =True
 ))
 
-DetachedTripletStep = cms.Sequence(detachedTripletStepClusters*
-                                   detachedTripletStepSeedLayers*
-                                   detachedTripletStepTrackingRegions*
-                                   detachedTripletStepHitDoublets*
-                                   detachedTripletStepHitTriplets*
-                                   detachedTripletStepSeeds*
-                                   detachedTripletStepTrackCandidates*
-                                   detachedTripletStepTracks*
-                                   detachedTripletStepClassifier1*detachedTripletStepClassifier2*
+DetachedTripletStepTask = cms.Task(detachedTripletStepClusters,
+                                   detachedTripletStepSeedLayers,
+                                   detachedTripletStepTrackingRegions,
+                                   detachedTripletStepHitDoublets,
+                                   detachedTripletStepHitTriplets,
+                                   detachedTripletStepSeeds,
+                                   detachedTripletStepTrackCandidates,
+                                   detachedTripletStepTracks,
+                                   detachedTripletStepClassifier1,detachedTripletStepClassifier2,
                                    detachedTripletStep)
-_DetachedTripletStep_LowPU = DetachedTripletStep.copyAndExclude([detachedTripletStepClassifier2])
-_DetachedTripletStep_LowPU.replace(detachedTripletStepClassifier1, detachedTripletStepSelector)
-trackingLowPU.toReplaceWith(DetachedTripletStep, _DetachedTripletStep_LowPU)
+DetachedTripletStep = cms.Sequence(DetachedTripletStepTask)
+_DetachedTripletStepTask_LowPU = DetachedTripletStepTask.copyAndExclude([detachedTripletStepClassifier2])
+_DetachedTripletStepTask_LowPU.replace(detachedTripletStepClassifier1, detachedTripletStepSelector)
+trackingLowPU.toReplaceWith(DetachedTripletStepTask, _DetachedTripletStepTask_LowPU)
+
+# fast tracking mask producer
+from FastSimulation.Tracking.FastTrackerRecHitMaskProducer_cfi import maskProducerFromClusterRemover
+detachedTripletStepMasks = maskProducerFromClusterRemover(detachedTripletStepClusters)
+fastSim.toReplaceWith(DetachedTripletStepTask,
+                      cms.Task(detachedTripletStepMasks
+                                   ,detachedTripletStepTrackingRegions
+                                   ,detachedTripletStepSeeds
+                                   ,detachedTripletStepTrackCandidates
+                                   ,detachedTripletStepTracks
+                                   ,detachedTripletStepClassifier1,detachedTripletStepClassifier2
+                                   ,detachedTripletStep
+                                   ) )

@@ -24,8 +24,8 @@ vertexAnalysis = cms.EDAnalyzer("PrimaryVertexAnalyzer4PUSlimmed",
                                 vertexRecoCollections = cms.VInputTag("offlinePrimaryVertices",
                                                                       "offlinePrimaryVerticesWithBS",
                                                                       "selectedOfflinePrimaryVertices",
-                                                                      "selectedOfflinePrimaryVerticesWithBS",
-                                ),
+                                                                      "selectedOfflinePrimaryVerticesWithBS"
+                                                                      ),
 )
 
 vertexAnalysisTrackingOnly = vertexAnalysis.clone(
@@ -37,15 +37,23 @@ vertexAnalysisTrackingOnly = vertexAnalysis.clone(
 from Configuration.Eras.Modifier_trackingLowPU_cff import trackingLowPU
 trackingLowPU.toModify(vertexAnalysisTrackingOnly, vertexRecoCollections = vertexAnalysis.vertexRecoCollections.value())
 from Configuration.Eras.Modifier_trackingPhase2PU140_cff import trackingPhase2PU140
-trackingPhase2PU140.toModify(vertexAnalysisTrackingOnly, vertexRecoCollections = vertexAnalysis.vertexRecoCollections.value())
+trackingPhase2PU140.toModify(vertexAnalysisTrackingOnly,
+    vertexRecoCollections = vertexAnalysis.vertexRecoCollections.value() + [
+        "firstStepPrimaryVertices"
+    ]
+)
 
 pixelVertexAnalysisTrackingOnly = vertexAnalysis.clone(
     do_generic_sim_plots = False,
     trackAssociatorMap = "trackingParticlePixelTrackAsssociation",
+    vertexAssociator = "PixelVertexAssociatorByPositionAndTracks",
     vertexRecoCollections = [
         "pixelVertices",
         "selectedPixelVertices"
     ]
+)
+pixelVertexAnalysisPixelTrackingOnly = pixelVertexAnalysisTrackingOnly.clone(
+    do_generic_sim_plots = True,
 )
 
 ##########
@@ -67,16 +75,34 @@ vertexAnalysisSequenceTrackingOnly = cms.Sequence(
     + vertexAnalysisTrackingOnly
 )
 
-from SimTracker.TrackAssociation.trackingParticleRecoTrackAsssociation_cfi import trackingParticleRecoTrackAsssociation as _trackingParticleRecoTrackAsssociation
-trackingParticlePixelTrackAsssociation = _trackingParticleRecoTrackAsssociation.clone(
-    label_tr = "pixelTracks"
-)
-
 _vertexAnalysisSequenceTrackingOnly_trackingLowPU = vertexAnalysisSequenceTrackingOnly.copy()
 _vertexAnalysisSequenceTrackingOnly_trackingLowPU += (
-    trackingParticlePixelTrackAsssociation
-    + selectedPixelVertices
+    selectedPixelVertices
     + pixelVertexAnalysisTrackingOnly
 )
 trackingLowPU.toReplaceWith(vertexAnalysisSequenceTrackingOnly, _vertexAnalysisSequenceTrackingOnly_trackingLowPU)
-trackingPhase2PU140.toReplaceWith(vertexAnalysisSequenceTrackingOnly, _vertexAnalysisSequenceTrackingOnly_trackingLowPU)
+
+vertexAnalysisSequencePixelTrackingOnly = cms.Sequence(
+    selectedPixelVertices
+    + pixelVertexAnalysisPixelTrackingOnly
+)
+
+
+from Configuration.Eras.Modifier_phase2_timing_layer_cff import phase2_timing_layer
+_vertexRecoCollectionsTiming = cms.VInputTag("offlinePrimaryVertices",
+                                             "offlinePrimaryVerticesWithBS",
+                                             "selectedOfflinePrimaryVertices",
+                                             "selectedOfflinePrimaryVerticesWithBS",
+                                             "offlinePrimaryVertices4D",
+                                             "selectedOfflinePrimaryVertices4D",
+                                             )
+selectedOfflinePrimaryVertices4D = selectedOfflinePrimaryVertices.clone(src = cms.InputTag("offlinePrimaryVertices4D"))
+
+_vertexAnalysisSelectionTiming = vertexAnalysisSelection.copy()
+_vertexAnalysisSelectionTiming += selectedOfflinePrimaryVertices4D
+
+phase2_timing_layer.toModify( vertexAnalysis, 
+                              vertexRecoCollections = _vertexRecoCollectionsTiming
+                              )
+phase2_timing_layer.toReplaceWith( vertexAnalysisSelection,
+                                   _vertexAnalysisSelectionTiming )

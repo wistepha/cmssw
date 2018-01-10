@@ -108,7 +108,7 @@ namespace edmNew {
 #else
         mutable int offset;
 #endif
-        CMS_THREAD_GUARD("offset") mutable size_type size;
+        CMS_THREAD_GUARD(offset) mutable size_type size;
 
         bool uninitialized() const { return (-1)==offset;}
         bool initializing() const { return (-2)==offset;}
@@ -172,7 +172,7 @@ namespace edmNew {
     struct IterHelp {
       typedef DetSet result_type;
       //      IterHelp() : v(0),update(true){}
-      IterHelp() : m_v(0),m_update(false){}
+      IterHelp() : m_v(nullptr),m_update(false){}
       IterHelp(DetSetVector<T> const & iv, bool iup) : m_v(&iv), m_update(iup){}
       
       result_type & operator()(Item const& item) const {
@@ -310,7 +310,7 @@ namespace edmNew {
       }
       ~TSFastFiller() {
         bool expected=false;
-        while (!m_v.m_filling.compare_exchange_weak(expected,true))  { expected=false; nanosleep(0,0);}
+        while (!m_v.m_filling.compare_exchange_weak(expected,true))  { expected=false; nanosleep(nullptr,nullptr);}
         int offset = m_v.m_data.size();
         if (m_v.onDemand() && full()) {
           m_v.m_filling = false;
@@ -385,7 +385,7 @@ namespace edmNew {
 #ifdef DSVN_USE_ATOMIC
       {
         bool expected=false;
-        while (!iContainer.m_filling.compare_exchange_weak(expected,true,std::memory_order_acq_rel))  { expected=false; nanosleep(0,0);}
+        while (!iContainer.m_filling.compare_exchange_weak(expected,true,std::memory_order_acq_rel))  { expected=false; nanosleep(nullptr,nullptr);}
         typename self::result_type item =  &(iContainer.m_data[iIndex]);
         assert(iContainer.m_filling==true);
         iContainer.m_filling = false;
@@ -618,7 +618,7 @@ namespace edmNew {
     // ROOT6 has a problem with this IdContainer typedef
     //IdContainer m_ids;
     std::vector<Trans::Item> m_ids;
-    CMS_THREAD_GUARD("dstvdetails::DetSetVectorTrans::m_filling") mutable DataContainer m_data;
+    CMS_THREAD_GUARD(dstvdetails::DetSetVectorTrans::m_filling) mutable DataContainer m_data;
     
   };
   
@@ -673,7 +673,7 @@ namespace edmNew {
 			     typename Container::Item const & item, bool update) {
     // if an item is being updated we wait
     if (update) icont.update(item);
-    while(item.initializing()) nanosleep(0,0);
+    while(item.initializing()) nanosleep(nullptr,nullptr);
     m_data=&icont.data();
     m_id=item.id; 
     m_offset = item.offset; 
@@ -683,8 +683,7 @@ namespace edmNew {
 }
 
 #include "DataFormats/Common/interface/Ref.h"
-#include <boost/mpl/assert.hpp>
-#include <boost/type_traits/is_same.hpp>
+#include <type_traits>
 
 //specialize behavior of edm::Ref to get access to the 'Det'
 namespace edm {
@@ -722,7 +721,7 @@ namespace edmNew {
   edm::Ref<typename HandleT::element_type, typename HandleT::element_type::value_type::value_type>
   makeRefTo(const HandleT& iHandle,
              typename HandleT::element_type::value_type::const_iterator itIter) {
-    BOOST_MPL_ASSERT((boost::is_same<typename HandleT::element_type, DetSetVector<typename HandleT::element_type::value_type::value_type> >));
+    static_assert(std::is_same<typename HandleT::element_type, DetSetVector<typename HandleT::element_type::value_type::value_type> >::value, "Handle and DetSetVector do not have compatible types.");
     auto index = itIter - &iHandle->data().front(); 
     return edm::Ref<typename HandleT::element_type,
 	       typename HandleT::element_type::value_type::value_type>

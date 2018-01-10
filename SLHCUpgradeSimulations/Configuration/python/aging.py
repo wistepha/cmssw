@@ -8,6 +8,16 @@ def getHcalDigitizer(process):
         return process.mix.digitizers.hcal
     return None
 
+def getHGCalDigitizer(process,section):
+    if hasattr(process,'mix') and hasattr(process.mix,'digitizers'):
+        if section == 'EE' and hasattr(process.mix.digitizers,'hgceeDigitizer'):
+            return process.mix.digitizers.hgceeDigitizer
+        elif section == 'FH' and hasattr(process.mix.digitizers,'hgchefrontDigitizer'):
+            return process.mix.digitizers.hgchefrontDigitizer
+        elif section == 'BH' and hasattr(process.mix.digitizers,'hgchebackDigitizer'):
+            return process.mix.digitizers.hgchebackDigitizer
+    return None
+
 # change assumptions about lumi rate
 def setScenarioHLLHC(module,scenarioHLLHC):
     if scenarioHLLHC=="nominal":
@@ -47,6 +57,13 @@ def ageHF(process,turnon):
     if hcaldigi is not None: hcaldigi.HFDarkening = cms.bool(turnon)
     if hasattr(process,'es_hardcode'):
         process.es_hardcode.HFRecalibration = cms.bool(turnon)
+    return process
+
+def agedHGCal(process):
+    from SimCalorimetry.HGCalSimProducers.hgcalDigitizer_cfi import HGCal_setEndOfLifeNoise
+    for subdet in ['EE','FH','BH']:
+        hgcaldigi = getHGCalDigitizer(process,subdet)
+        if hgcaldigi is not None: HGCal_setEndOfLifeNoise(hgcaldigi)
     return process
 
 # needs lumi to set proper ZS thresholds (tbd)
@@ -123,12 +140,21 @@ def ageEcal(process,lumi,instLumi):
    # available conditions
     ecal_lumis = [300,1000,3000,4500]
     ecal_conditions = [
-        ['EcalIntercalibConstantsRcd','EcalIntercalibConstants_TL{:d}_upgrade_8deg_mc'],
-        ['EcalIntercalibConstantsMCRcd','EcalIntercalibConstantsMC_TL{:d}_upgrade_8deg_mc'],
+        ['EcalIntercalibConstantsRcd','EcalIntercalibConstants_TL{:d}_upgrade_8deg_v2_mc'],
+        ['EcalIntercalibConstantsMCRcd','EcalIntercalibConstantsMC_TL{:d}_upgrade_8deg_v2_mc'],
         ['EcalLaserAPDPNRatiosRcd','EcalLaserAPDPNRatios_TL{:d}_upgrade_8deg_mc'],
         ['EcalPedestalsRcd','EcalPedestals_TL{:d}_upgradeTIA_8deg_mc'],
         ['EcalTPGLinearizationConstRcd','EcalTPGLinearizationConst_TL{:d}_upgrade_8deg_mc'],
     ]
+
+    # update PF thresholds, based on https://indico.cern.ch/event/653123/contributions/2659235/attachments/1491385/2318364/170711_upsg_ledovskoy.pdf
+    ecal_thresholds = {
+        300 : 0.103,
+        1000 : 0.175,
+        3000 : 0.435,
+        4500 : 0.707,
+    }
+    ecal_seed_multiplier = 2.5
 
     # try to get conditions
     if int(lumi) in ecal_lumis:
@@ -141,6 +167,15 @@ def ageEcal(process,lumi,instLumi):
                 connect = cms.string("frontier://FrontierProd/CMS_CONDITIONS")
                 )
             )
+        if hasattr(process,"particleFlowClusterECALUncorrected"):
+            _seeds = process.particleFlowClusterECALUncorrected.seedFinder.thresholdsByDetector
+            for iseed in range(0,len(_seeds)):
+                if _seeds[iseed].detector.value()=="ECAL_BARREL":
+                    _seeds[iseed].seedingThreshold = cms.double(ecal_thresholds[int(lumi)]*ecal_seed_multiplier)
+            _clusters = process.particleFlowClusterECALUncorrected.initialClusteringStep.thresholdsByDetector
+            for icluster in range(0,len(_clusters)):
+                if _clusters[icluster].detector.value()=="ECAL_BARREL":
+                    _clusters[icluster].gatheringThreshold = cms.double(ecal_thresholds[int(lumi)])
         
     return process
 
@@ -164,14 +199,17 @@ def customise_aging_1000(process):
 def customise_aging_3000(process):
     process=ageHcal(process,3000,5.0e34,"nominal")
     process=ageEcal(process,3000,5.0e34)
+    process=agedHGCal(process)
     return process
 
 def customise_aging_3000_ultimate(process):
     process=ageHcal(process,3000,7.5e34,"ultimate")
     process=ageEcal(process,3000,7.5e34)
+    process=agedHGCal(process)
     return process
 
 def customise_aging_4500_ultimate(process):
     process=ageHcal(process,4500,7.5e34,"ultimate")
     process=ageEcal(process,4500,7.5e34)
+    process=agedHGCal(process)
     return process

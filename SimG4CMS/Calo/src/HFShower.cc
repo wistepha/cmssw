@@ -23,9 +23,9 @@
 
 #include<iostream>
 
-HFShower::HFShower(std::string & name, const DDCompactView & cpv, 
-		   edm::ParameterSet const & p, int chk) : cherenkov(0),
-                                                           fibre(0),
+HFShower::HFShower(const std::string & name, const DDCompactView & cpv, 
+		   edm::ParameterSet const & p, int chk) : cherenkov(nullptr),
+                                                           fibre(nullptr),
                                                            chkFibre(chk) {
 
   edm::ParameterSet m_HF = p.getParameter<edm::ParameterSet>("HFShower");
@@ -44,7 +44,7 @@ HFShower::~HFShower() {
   if (fibre)     delete fibre;
 }
 
-std::vector<HFShower::Hit> HFShower::getHits(G4Step * aStep, double weight) {
+std::vector<HFShower::Hit> HFShower::getHits(const G4Step * aStep, double weight) {
 
   std::vector<HFShower::Hit> hits;
   int    nHit    = 0;
@@ -63,7 +63,7 @@ std::vector<HFShower::Hit> HFShower::getHits(G4Step * aStep, double weight) {
 #endif
     return hits;
   }
-  G4Track *aTrack = aStep->GetTrack();
+  const G4Track *aTrack = aStep->GetTrack();
   const G4DynamicParticle *aParticle = aTrack->GetDynamicParticle();
  
   HFShower::Hit hit;
@@ -73,11 +73,11 @@ std::vector<HFShower::Hit> HFShower::getHits(G4Step * aStep, double weight) {
   double dose     = 0.;
   int    npeDose  = 0;
 
-  G4ThreeVector momentumDir = aParticle->GetMomentumDirection();
-  G4ParticleDefinition *particleDef = aTrack->GetDefinition();
+  const G4ThreeVector& momentumDir = aParticle->GetMomentumDirection();
+  const G4ParticleDefinition *particleDef = aTrack->GetDefinition();
      
-  G4StepPoint * preStepPoint = aStep->GetPreStepPoint();
-  G4ThreeVector globalPos    = preStepPoint->GetPosition();
+  const G4StepPoint * preStepPoint = aStep->GetPreStepPoint();
+  const G4ThreeVector& globalPos    = preStepPoint->GetPosition();
   G4String      name         = preStepPoint->GetTouchable()->GetSolid(0)->GetName();
   //double        zv           = std::abs(globalPos.z()) - gpar[4] - 0.5*gpar[1];
   double        zv           = std::abs(globalPos.z()) - gpar[4];
@@ -179,7 +179,7 @@ std::vector<HFShower::Hit> HFShower::getHits(G4Step * aStep, double weight) {
 
 } 
 
-std::vector<HFShower::Hit> HFShower::getHits(G4Step * aStep,
+std::vector<HFShower::Hit> HFShower::getHits(const G4Step * aStep,
 					     bool forLibraryProducer,
 					     double zoffset) {
 
@@ -197,7 +197,7 @@ std::vector<HFShower::Hit> HFShower::getHits(G4Step * aStep,
 #endif
     return hits;
   }
-  G4Track *aTrack = aStep->GetTrack();
+  const G4Track *aTrack = aStep->GetTrack();
   const G4DynamicParticle *aParticle = aTrack->GetDynamicParticle();
  
   HFShower::Hit hit;
@@ -207,11 +207,11 @@ std::vector<HFShower::Hit> HFShower::getHits(G4Step * aStep,
   double dose     = 0.;
   int    npeDose  = 0;
 
-  G4ThreeVector momentumDir = aParticle->GetMomentumDirection();
+  const G4ThreeVector& momentumDir = aParticle->GetMomentumDirection();
   G4ParticleDefinition *particleDef = aTrack->GetDefinition();
      
   G4StepPoint * preStepPoint = aStep->GetPreStepPoint();
-  G4ThreeVector globalPos    = preStepPoint->GetPosition();
+  const G4ThreeVector& globalPos    = preStepPoint->GetPosition();
   G4String      name         = preStepPoint->GetTouchable()->GetSolid(0)->GetName();
   //double        zv           = std::abs(globalPos.z()) - gpar[4] - 0.5*gpar[1];
   //double        zv           = std::abs(globalPos.z()) - gpar[4];
@@ -314,7 +314,7 @@ std::vector<HFShower::Hit> HFShower::getHits(G4Step * aStep,
 
 } 
 
-std::vector<HFShower::Hit> HFShower::getHits(G4Step * aStep, bool forLibrary) {
+std::vector<HFShower::Hit> HFShower::getHits(const G4Step * aStep, bool forLibrary) {
   std::vector<HFShower::Hit> hits;
   int    nHit    = 0;
 
@@ -330,7 +330,7 @@ std::vector<HFShower::Hit> HFShower::getHits(G4Step * aStep, bool forLibrary) {
     return hits;
   }
 
-  G4Track *aTrack = aStep->GetTrack();
+  const G4Track *aTrack = aStep->GetTrack();
   const G4DynamicParticle *aParticle = aTrack->GetDynamicParticle();
 
   HFShower::Hit hit;
@@ -340,11 +340,11 @@ std::vector<HFShower::Hit> HFShower::getHits(G4Step * aStep, bool forLibrary) {
   double dose     = 0.;
   int    npeDose  = 0;
 
-  G4ThreeVector momentumDir = aParticle->GetMomentumDirection();
+  const G4ThreeVector& momentumDir = aParticle->GetMomentumDirection();
   G4ParticleDefinition *particleDef = aTrack->GetDefinition();
 
-  G4StepPoint * preStepPoint = aStep->GetPreStepPoint();
-  G4ThreeVector globalPos    = preStepPoint->GetPosition();
+  const G4StepPoint * preStepPoint = aStep->GetPreStepPoint();
+  const G4ThreeVector& globalPos    = preStepPoint->GetPosition();
   G4String      name         = preStepPoint->GetTouchable()->GetSolid(0)->GetName();
   double        zv           = std::abs(globalPos.z()) - gpar[4] - 0.5*gpar[1];
   G4ThreeVector localPos     = G4ThreeVector(globalPos.x(),globalPos.y(), zv);

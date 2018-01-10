@@ -28,7 +28,7 @@ namespace l1t {
        int phi=0,
        int qual=0);
 
-  ~Jet();
+  ~Jet() override;
 
                   
   void setTowerIEta(short int ieta);  // ieta of seed tower                   
@@ -36,7 +36,7 @@ namespace l1t {
   void setRawEt(short int et);    // raw (uncalibrated) cluster sum
   void setSeedEt(short int et);
   void setPUEt(short int et);
-  void setPUDonutEt(uint i, short int et);
+  void setPUDonutEt(unsigned int i, short int et);
 
   short int towerIEta() const;
   short int towerIPhi() const;

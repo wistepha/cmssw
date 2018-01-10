@@ -40,7 +40,7 @@
 class HcalTPGCoderULUT : public edm::ESProducer {
 public:
   HcalTPGCoderULUT(const edm::ParameterSet&);
-  ~HcalTPGCoderULUT();
+  ~HcalTPGCoderULUT() override;
      
   typedef std::shared_ptr<HcalTPGCoder> ReturnType;
   void dbRecordCallback(const HcalDbRecord&);
@@ -51,8 +51,10 @@ private:
   // ----------member data ---------------------------
   ReturnType coder_;  
   HcaluLUTTPGCoder* theCoder_;
-  bool read_FGLut_, read_Ascii_,read_XML_,LUTGenerationMode_;
+  bool read_FGLut_, read_Ascii_,read_XML_,LUTGenerationMode_,linearLUTs_;
+  double linearLSB_QIE8_, linearLSB_QIE11Overlap_, linearLSB_QIE11_;
   int maskBit_;
+  unsigned int FG_HF_threshold_;
   edm::FileInPath fgfile_,ifilename_;
 };
 
@@ -78,13 +80,19 @@ HcalTPGCoderULUT::HcalTPGCoderULUT(const edm::ParameterSet& iConfig)
   if (!(read_Ascii_ || read_XML_)) {
     setWhatProduced(this,(dependsOn(&HcalTPGCoderULUT::dbRecordCallback)));
     LUTGenerationMode_ = iConfig.getParameter<bool>("LUTGenerationMode");
+    linearLUTs_ = iConfig.getParameter<bool>("linearLUTs");
+    auto scales = iConfig.getParameter<edm::ParameterSet>("tpScales").getParameter<edm::ParameterSet>("HBHE");
+    linearLSB_QIE8_ = scales.getParameter<double>("LSBQIE8");
+    linearLSB_QIE11_ = scales.getParameter<double>("LSBQIE11");
+    linearLSB_QIE11Overlap_ = scales.getParameter<double>("LSBQIE11Overlap");
     maskBit_ = iConfig.getParameter<int>("MaskBit");
+    FG_HF_threshold_ = iConfig.getParameter<uint32_t>("FG_HF_threshold"); 
   } else {
     ifilename_=iConfig.getParameter<edm::FileInPath>("inputLUTs");
     setWhatProduced(this);
   }
 
-  theCoder_=0;
+  theCoder_=nullptr;
 }
 
   
@@ -103,8 +111,10 @@ void HcalTPGCoderULUT::buildCoder(const HcalTopology* topo) {
       theCoder_->update(fgfile_.fullPath().c_str(), true);
     } 
   } else {
+    theCoder_->setAllLinear(linearLUTs_, linearLSB_QIE8_, linearLSB_QIE11_, linearLSB_QIE11Overlap_);
     theCoder_->setLUTGenerationMode(LUTGenerationMode_);
     theCoder_->setMaskBit(maskBit_);
+    theCoder_->setFGHFthreshold(FG_HF_threshold_);
   }  
   coder_=ReturnType(theCoder_);
 }
@@ -125,7 +135,7 @@ HcalTPGCoderULUT::~HcalTPGCoderULUT() {
 HcalTPGCoderULUT::ReturnType
 HcalTPGCoderULUT::produce(const HcalTPGRecord& iRecord)
 {
-  if (theCoder_==0) {
+  if (theCoder_==nullptr || (read_Ascii_ || read_XML_)) {// !(read_Ascii_ || read_XML_) goes via dbRecordCallback
     edm::ESHandle<HcalTopology> htopo;
     iRecord.getRecord<HcalRecNumberingRecord>().get(htopo);
     const HcalTopology* topo=&(*htopo);
@@ -143,9 +153,7 @@ void HcalTPGCoderULUT::dbRecordCallback(const HcalDbRecord& theRec) {
   theRec.getRecord<HcalRecNumberingRecord>().get(htopo);
   const HcalTopology* topo=&(*htopo);
 
-  if (theCoder_==0) {
-    buildCoder(topo);
-  }
+  buildCoder(topo);
 
   theCoder_->update(*conditions);
 

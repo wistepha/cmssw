@@ -76,7 +76,6 @@ namespace {
     public:
         inline RawChargeFromSample(const int sipmQTSShift,
                                    const int sipmQNTStoSum,
-                                   const bool saveEffectivePedestal,
                                    const HcalDbService& cond,
                                    const HcalDetId id,
                                    const CaloSamples& cs,
@@ -95,7 +94,6 @@ namespace {
     public:
         inline RawChargeFromSample(const int sipmQTSShift,
                                    const int sipmQNTStoSum,
-                                   const bool saveEffectivePedestal,
                                    const HcalDbService& cond,
                                    const HcalDetId id,
                                    const CaloSamples& cs,
@@ -112,16 +110,13 @@ namespace {
                     << std::endl;
 
             const HcalCalibrations& calib = cond.getHcalCalibrations(id);
-            const double darkCurrent = siPMParameter_.getDarkCurrent();
-            const double lambda = cond.getHcalSiPMCharacteristics()->getCrossTalk(siPMParameter_.getType());
             const int firstTS = std::max(soi + sipmQTSShift, 0);
             const int lastTS = std::min(firstTS + sipmQNTStoSum, maxTS);
             double sipmQ = 0.0;
 
             for (int ts = firstTS; ts < lastTS; ++ts)
             {
-                const double pedestal = calib.pedestal(frame[ts].capid()) +
-                    (saveEffectivePedestal ? darkCurrent * 25. / (1. - lambda) : 0.);
+                const double pedestal = calib.pedestal(frame[ts].capid());
                 sipmQ += (cs[ts] - pedestal);
             }
 
@@ -149,21 +144,7 @@ namespace {
 
     float getTDCTimeFromSample(const QIE11DataFrame::Sample& s)
     {
-        // Conversion from TDC to ns for the QIE11 chip
-        static const float qie11_tdc_to_ns = 0.5f;
-
-        // TDC values produced in case the pulse is always above/below
-        // the discriminator
-        static const int qie11_tdc_code_overshoot = 62;
-        static const int qie11_tdc_code_undershoot = 63;
-
-        const int tdc = s.tdc();
-        float t = qie11_tdc_to_ns*tdc;
-        if (tdc == qie11_tdc_code_overshoot)
-            t = HcalSpecialTimes::UNKNOWN_T_OVERSHOOT;
-        else if (tdc == qie11_tdc_code_undershoot)
-            t = HcalSpecialTimes::UNKNOWN_T_UNDERSHOOT;
-        return t;
+        return HcalSpecialTimes::getTDCTime(s.tdc());
     }
 
     float getTDCTimeFromSample(const HcalQIESample&)
@@ -300,14 +281,14 @@ class HBHEPhase1Reconstructor : public edm::stream::EDProducer<>
 {
 public:
     explicit HBHEPhase1Reconstructor(const edm::ParameterSet&);
-    ~HBHEPhase1Reconstructor();
+    ~HBHEPhase1Reconstructor() override;
 
     static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
 
 private:
-    virtual void beginRun(edm::Run const&, edm::EventSetup const&) override;
-    virtual void endRun(edm::Run const&, edm::EventSetup const&) override;
-    virtual void produce(edm::Event&, const edm::EventSetup&) override;
+    void beginRun(edm::Run const&, edm::EventSetup const&) override;
+    void endRun(edm::Run const&, edm::EventSetup const&) override;
+    void produce(edm::Event&, const edm::EventSetup&) override;
 
     // Configuration parameters
     std::string algoConfigClass_;
@@ -515,7 +496,7 @@ void HBHEPhase1Reconstructor::processData(const Collection& coll,
         const int nRead = cs.size();
         const int maxTS = std::min(nRead, static_cast<int>(HBHEChannelInfo::MAXSAMPLES));
         const int soi = tsFromDB_ ? param_ts->firstSample() : frame.presamples();
-        const RawChargeFromSample<DFrame> rcfs(sipmQTSShift_, sipmQNTStoSum_, saveEffectivePedestal_,
+        const RawChargeFromSample<DFrame> rcfs(sipmQTSShift_, sipmQNTStoSum_, 
                                                cond, cell, cs, soi, frame, maxTS);
         int soiCapid = 4;
 
@@ -525,13 +506,14 @@ void HBHEPhase1Reconstructor::processData(const Collection& coll,
             auto s(frame[ts]);
             const uint8_t adc = s.adc();
             const int capid = s.capid();
-            //optionally store "effective" pedestal = QIE contribution (default, from calib.pedestal()) + SiPM contribution (dark current + crosstalk)
-            //only done for pedestal mean, to be used for pedestal subtraction downstream
-            const double pedestal = calib.pedestal(capid) + (saveEffectivePedestal_ ? darkCurrent * 25. / (1. - lambda) : 0.);
-            const double pedestalWidth = calibWidth.pedestal(capid);
+            //optionally store "effective" pedestal (measured with bias voltage on)
+            // = QIE contribution + SiPM contribution (from dark current + crosstalk)
+            const double pedestal = saveEffectivePedestal_ ? calib.effpedestal(capid) : calib.pedestal(capid);
+            const double pedestalWidth = saveEffectivePedestal_ ? calibWidth.effpedestal(capid) : calibWidth.pedestal(capid);
             const double gain = calib.respcorrgain(capid);
             const double gainWidth = calibWidth.gain(capid);
-            const double rawCharge = rcfs.getRawCharge(cs[ts], pedestal);
+            //always use QIE-only pedestal for this computation
+            const double rawCharge = rcfs.getRawCharge(cs[ts], calib.pedestal(capid));
             const float t = getTDCTimeFromSample(s);
             const float dfc = getDifferentialChargeGain(*channelCoder, *shape, adc,
                                                         capid, channelInfo->hasTimeInfo());
@@ -687,7 +669,7 @@ HBHEPhase1Reconstructor::produce(edm::Event& e, const edm::EventSetup& eventSetu
         if (setNoiseFlagsQIE8_)
             hbheFlagSetterQIE8_->Clear();
 
-        HBHEChannelInfo channelInfo(false);
+        HBHEChannelInfo channelInfo(false,false);
         processData<HBHEDataFrame>(*hbDigis, *conditions, *p, *mycomputer,
                                    isData, &channelInfo, infos.get(), out.get());
         if (setNoiseFlagsQIE8_)
@@ -699,7 +681,7 @@ HBHEPhase1Reconstructor::produce(edm::Event& e, const edm::EventSetup& eventSetu
         if (setNoiseFlagsQIE11_)
             hbheFlagSetterQIE11_->Clear();
 
-        HBHEChannelInfo channelInfo(true);
+        HBHEChannelInfo channelInfo(true,saveEffectivePedestal_);
         processData<QIE11DataFrame>(*heDigis, *conditions, *p, *mycomputer,
                                     isData, &channelInfo, infos.get(), out.get());
         if (setNoiseFlagsQIE11_)

@@ -38,7 +38,7 @@
 
 #include "Geometry/Records/interface/TrackerDigiGeometryRecord.h" 
 #include "Geometry/TrackerGeometryBuilder/interface/TrackerGeometry.h"
-#include "Geometry/CommonDetUnit/interface/GeomDetUnit.h"
+#include "Geometry/CommonDetUnit/interface/GeomDet.h"
 #include "Geometry/TrackerGeometryBuilder/interface/PixelGeomDetUnit.h"
 #include "Geometry/TrackerGeometryBuilder/interface/PixelGeomDetType.h"
 
@@ -53,12 +53,12 @@ class TBeamTest : public DQMEDAnalyzer{
 public:
 
   explicit TBeamTest(const edm::ParameterSet&);
-  ~TBeamTest();
-  void dqmBeginRun(const edm::Run& iRun, const edm::EventSetup& iSetup); 
+  ~TBeamTest() override;
+  void dqmBeginRun(const edm::Run& iRun, const edm::EventSetup& iSetup) override; 
   void bookHistograms(DQMStore::IBooker & ibooker,
 		      edm::Run const &  iRun ,
-		      edm::EventSetup const &  iSetup );
-  virtual void analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup);
+		      edm::EventSetup const &  iSetup ) override;
+  void analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup) override;
 
   struct DigiMEs{
     MonitorElement* NumberOfDigis;

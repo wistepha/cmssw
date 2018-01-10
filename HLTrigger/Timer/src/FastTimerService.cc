@@ -72,16 +72,16 @@ namespace {
 FastTimerService::Resources::Resources() :
   time_thread(boost::chrono::nanoseconds::zero()),
   time_real(boost::chrono::nanoseconds::zero()),
-  allocated(0UL),
-  deallocated(0UL)
+  allocated(0ul),
+  deallocated(0ul)
 { }
 
 void
 FastTimerService::Resources::reset() {
   time_thread = boost::chrono::nanoseconds::zero();
   time_real   = boost::chrono::nanoseconds::zero();
-  allocated   = 0UL;
-  deallocated = 0UL;
+  allocated   = 0ul;
+  deallocated = 0ul;
 }
 
 FastTimerService::Resources &
@@ -96,6 +96,58 @@ FastTimerService::Resources::operator+=(Resources const& other) {
 FastTimerService::Resources
 FastTimerService::Resources::operator+(Resources const& other) const {
   Resources result(*this);
+  result += other;
+  return result;
+}
+
+// AtomicResources
+// operation on the whole object are not atomic, as the operations
+// on the individual fields could be interleaved; however, accumulation
+// of results should yield the correct result.
+
+FastTimerService::AtomicResources::AtomicResources() :
+  time_thread(0ul),
+  time_real(0ul),
+  allocated(0ul),
+  deallocated(0ul)
+{ }
+
+FastTimerService::AtomicResources::AtomicResources(AtomicResources const& other) :
+  time_thread(other.time_thread.load()),
+  time_real(other.time_real.load()),
+  allocated(other.allocated.load()),
+  deallocated(other.deallocated.load())
+{ }
+
+void
+FastTimerService::AtomicResources::reset() {
+  time_thread = 0ul;
+  time_real   = 0ul;
+  allocated   = 0ul;
+  deallocated = 0ul;
+}
+
+FastTimerService::AtomicResources &
+FastTimerService::AtomicResources::operator=(AtomicResources const& other) {
+  time_thread = other.time_thread.load();
+  time_real   = other.time_real.load();
+  allocated   = other.allocated.load();
+  deallocated = other.deallocated.load();
+  return *this;
+}
+
+FastTimerService::AtomicResources &
+FastTimerService::AtomicResources::operator+=(AtomicResources const& other) {
+  time_thread += other.time_thread.load();
+  time_real   += other.time_real.load();
+  allocated   += other.allocated.load();
+  deallocated += other.deallocated.load();
+  return *this;
+}
+
+FastTimerService::AtomicResources
+FastTimerService::AtomicResources::operator+(AtomicResources const& other) const {
+  AtomicResources result(*this);
   result += other;
   return result;
 }
@@ -201,6 +253,8 @@ FastTimerService::ResourcesPerJob::ResourcesPerJob()
 
 FastTimerService::ResourcesPerJob::ResourcesPerJob(ProcessCallGraph const& job, std::vector<GroupOfModules> const& groups) :
   total(),
+  overhead(),
+  event(),
   highlight( groups.size() ),
   modules( job.size() ),
   processes(),
@@ -214,6 +268,8 @@ FastTimerService::ResourcesPerJob::ResourcesPerJob(ProcessCallGraph const& job, 
 void
 FastTimerService::ResourcesPerJob::reset() {
   total.reset();
+  overhead.reset();
+  event.reset();
   for (auto & module: highlight)
     module.reset();
   for (auto & module: modules)
@@ -226,6 +282,8 @@ FastTimerService::ResourcesPerJob::reset() {
 FastTimerService::ResourcesPerJob &
 FastTimerService::ResourcesPerJob::operator+=(ResourcesPerJob const& other) {
   total     += other.total;
+  overhead  += other.overhead;
+  event     += other.event;
   assert(highlight.size() == other.highlight.size());
   for (unsigned int i: boost::irange(0ul, highlight.size()))
     highlight[i] += other.highlight[i];
@@ -251,8 +309,9 @@ FastTimerService::ResourcesPerJob::operator+(ResourcesPerJob const& other) const
 
 // Measurement
 
-FastTimerService::Measurement::Measurement()
-  = default;
+FastTimerService::Measurement::Measurement() {
+  measure();
+}
 
 void
 FastTimerService::Measurement::measure() {
@@ -278,6 +337,25 @@ FastTimerService::Measurement::measure_and_store(Resources & store) {
   store.time_real   = new_time_real   - time_real;
   store.allocated   = new_allocated   - allocated;
   store.deallocated = new_deallocated - deallocated;
+  time_thread = new_time_thread;
+  time_real   = new_time_real;
+  allocated   = new_allocated;
+  deallocated = new_deallocated;
+}
+
+void
+FastTimerService::Measurement::measure_and_accumulate(AtomicResources & store) {
+  #ifdef DEBUG_THREAD_CONCURRENCY
+  assert(std::this_thread::get_id() == id);
+  #endif // DEBUG_THREAD_CONCURRENCY
+  auto new_time_thread = boost::chrono::thread_clock::now();
+  auto new_time_real   = boost::chrono::high_resolution_clock::now();
+  auto new_allocated   = memory_usage::allocated();
+  auto new_deallocated = memory_usage::deallocated();
+  store.time_thread += boost::chrono::duration_cast<boost::chrono::nanoseconds>(new_time_thread - time_thread).count();
+  store.time_real   += boost::chrono::duration_cast<boost::chrono::nanoseconds>(new_time_real   - time_real).count();
+  store.allocated   += new_allocated   - allocated;
+  store.deallocated += new_deallocated - deallocated;
   time_thread = new_time_thread;
   time_real   = new_time_real;
   allocated   = new_allocated;
@@ -441,6 +519,34 @@ FastTimerService::PlotsPerElement::fill(Resources const& data, unsigned int lumi
 }
 
 void
+FastTimerService::PlotsPerElement::fill(AtomicResources const& data, unsigned int lumisection)
+{
+  if (time_thread_)
+    time_thread_->Fill(ms(boost::chrono::nanoseconds(data.time_thread.load())));
+
+  if (time_thread_byls_)
+    time_thread_byls_->Fill(lumisection, ms(boost::chrono::nanoseconds(data.time_thread.load())));
+
+  if (time_real_)
+    time_real_->Fill(ms(boost::chrono::nanoseconds(data.time_real.load())));
+
+  if (time_real_byls_)
+    time_real_byls_->Fill(lumisection, ms(boost::chrono::nanoseconds(data.time_real.load())));
+
+  if (allocated_)
+    allocated_->Fill(kB(data.allocated));
+
+  if (allocated_byls_)
+    allocated_byls_->Fill(lumisection, kB(data.allocated));
+
+  if (deallocated_)
+    deallocated_->Fill(kB(data.deallocated));
+
+  if (deallocated_byls_)
+    deallocated_byls_->Fill(lumisection, kB(data.deallocated));
+}
+
+void
 FastTimerService::PlotsPerElement::fill_fraction(Resources const& data, Resources const& part, unsigned int lumisection)
 {
   float total;
@@ -505,6 +611,7 @@ FastTimerService::PlotsPerPath::reset()
 void
 FastTimerService::PlotsPerPath::book(
     DQMStore::IBooker & booker,
+    std::string const & prefixDir,
     ProcessCallGraph const& job,
     ProcessCallGraph::PathType const& path,
     PlotRanges const& ranges,
@@ -512,7 +619,8 @@ FastTimerService::PlotsPerPath::book(
     bool byls)
 {
   const std::string basedir = booker.pwd();
-  booker.setCurrentFolder(basedir + "/path " + path.name_);
+  //  booker.setCurrentFolder(basedir + "/path " + path.name_);
+  booker.setCurrentFolder(basedir + "/" + prefixDir + path.name_);
 
   total_.book(booker, "path", path.name_, ranges, lumisections, byls);
 
@@ -621,6 +729,7 @@ FastTimerService::PlotsPerProcess::book(
     PlotRanges const& event_ranges,
     PlotRanges const& path_ranges,
     unsigned int lumisections,
+    bool bypath,
     bool byls)
 {
   const std::string basedir = booker.pwd();
@@ -629,24 +738,26 @@ FastTimerService::PlotsPerProcess::book(
       event_ranges,
       lumisections,
       byls);
-  booker.setCurrentFolder(basedir + "/process " + process.name_ + " paths");
-  for (unsigned int id: boost::irange(0ul, paths_.size()))
-  {
-    paths_[id].book(booker,
-        job, process.paths_[id],
-        path_ranges,
-        lumisections,
-        byls);
+  if (bypath) {
+    booker.setCurrentFolder(basedir + "/process " + process.name_ + " paths");
+    for (unsigned int id: boost::irange(0ul, paths_.size()))
+    {
+      paths_[id].book(booker,"path ",
+          job, process.paths_[id],
+          path_ranges,
+          lumisections,
+          byls);
+    }
+    for (unsigned int id: boost::irange(0ul, endpaths_.size()))
+    {
+      endpaths_[id].book(booker,"endpath ",
+          job, process.endPaths_[id],
+          path_ranges,
+          lumisections,
+          byls);
+    }
+    booker.setCurrentFolder(basedir);
   }
-  for (unsigned int id: boost::irange(0ul, endpaths_.size()))
-  {
-    endpaths_[id].book(booker,
-        job, process.endPaths_[id],
-        path_ranges,
-        lumisections,
-        byls);
-  }
-  booker.setCurrentFolder(basedir);
 }
 
 void
@@ -666,6 +777,8 @@ FastTimerService::PlotsPerProcess::fill(ProcessCallGraph::ProcessType const& des
 
 FastTimerService::PlotsPerJob::PlotsPerJob(ProcessCallGraph const& job, std::vector<GroupOfModules> const& groups) :
   event_(),
+  event_ex_(),
+  overhead_(),
   highlight_(groups.size()),
   modules_(job.size()),
   processes_()
@@ -679,6 +792,8 @@ void
 FastTimerService::PlotsPerJob::reset()
 {
   event_.reset();
+  event_ex_.reset();
+  overhead_.reset();
   for (auto & module: highlight_)
     module.reset();
   for (auto & module: modules_)
@@ -697,6 +812,7 @@ FastTimerService::PlotsPerJob::book(
     PlotRanges const& module_ranges,
     unsigned int lumisections,
     bool bymodule,
+    bool bypath,
     bool byls)
 {
   const std::string basedir = booker.pwd();
@@ -704,6 +820,18 @@ FastTimerService::PlotsPerJob::book(
   // event summary plots
   event_.book(booker,
       "event", "Event",
+      event_ranges,
+      lumisections,
+      byls);
+
+  event_ex_.book(booker,
+      "event_ex", "Event (explicit)",
+      event_ranges,
+      lumisections,
+      byls);
+
+  overhead_.book(booker,
+      "overhead", "Overhead",
       event_ranges,
       lumisections,
       byls);
@@ -732,6 +860,7 @@ FastTimerService::PlotsPerJob::book(
         event_ranges,
         path_ranges,
         lumisections,
+        bypath,
         byls);
 
     if (bymodule) {
@@ -755,6 +884,8 @@ FastTimerService::PlotsPerJob::fill(ProcessCallGraph const& job, ResourcesPerJob
 {
   // fill total event plots
   event_.fill(data.total, ls);
+  event_ex_.fill(data.event, ls);
+  overhead_.fill(data.overhead, ls);
 
   // fill highltight plots
   for (unsigned int group: boost::irange(0ul, highlight_.size()))
@@ -785,6 +916,7 @@ FastTimerService::FastTimerService(const edm::ParameterSet & config, edm::Activi
   module_id_(                   edm::ModuleDescription::invalidID() ),
   enable_dqm_(                  config.getUntrackedParameter<bool>(     "enableDQM"                ) ),
   enable_dqm_bymodule_(         config.getUntrackedParameter<bool>(     "enableDQMbyModule"        ) ),
+  enable_dqm_bypath_(           config.getUntrackedParameter<bool>(     "enableDQMbyPath"          ) ),
   enable_dqm_byls_(             config.getUntrackedParameter<bool>(     "enableDQMbyLumiSection"   ) ),
   enable_dqm_bynproc_(          config.getUntrackedParameter<bool>(     "enableDQMbyProcesses"     ) ),
   dqm_event_ranges_(          { config.getUntrackedParameter<double>(   "dqmTimeRange"             ),              // ms
@@ -805,6 +937,10 @@ FastTimerService::FastTimerService(const edm::ParameterSet & config, edm::Activi
   highlight_module_psets_(      config.getUntrackedParameter<std::vector<edm::ParameterSet>>("highlightModules") ),
   highlight_modules_(           highlight_module_psets_.size())         // filled in postBeginJob()
 {
+  // start observing when a thread enters or leaves the TBB global thread arena
+  tbb::task_scheduler_observer::observe();
+
+  // register EDM call backs
   registry.watchPreallocate(                this, & FastTimerService::preallocate );
   registry.watchPreBeginJob(                this, & FastTimerService::preBeginJob );
   registry.watchPostBeginJob(               this, & FastTimerService::postBeginJob );
@@ -825,7 +961,7 @@ FastTimerService::FastTimerService(const edm::ParameterSet & config, edm::Activi
 //registry.watchPostStreamBeginLumi(        this, & FastTimerService::postStreamBeginLumi );
 //registry.watchPreStreamEndLumi(           this, & FastTimerService::preStreamEndLumi );
   registry.watchPostStreamEndLumi(          this, & FastTimerService::postStreamEndLumi );
-//registry.watchPreEvent(                   this, & FastTimerService::preEvent );
+  registry.watchPreEvent(                   this, & FastTimerService::preEvent );
   registry.watchPostEvent(                  this, & FastTimerService::postEvent );
   registry.watchPrePathEvent(               this, & FastTimerService::prePathEvent );
   registry.watchPostPathEvent(              this, & FastTimerService::postPathEvent );
@@ -991,13 +1127,13 @@ FastTimerService::queryHighlightTime(edm::StreamID sid, std::string const& label
 
 
 void
-FastTimerService::ignoredSignal(std::string signal) const
+FastTimerService::ignoredSignal(const std::string& signal) const
 {
   LogDebug("FastTimerService") << "The FastTimerService received is currently not monitoring the signal \"" << signal << "\".\n";
 }
 
 void
-FastTimerService::unsupportedSignal(std::string signal) const
+FastTimerService::unsupportedSignal(const std::string& signal) const
 {
   // warn about each signal only once per job
   if (unsupported_signals_.insert(signal).second)
@@ -1047,6 +1183,7 @@ FastTimerService::preStreamBeginRun(edm::StreamContext const& sc)
             dqm_module_ranges_,
             dqm_lumisections_range_,
             enable_dqm_bymodule_,
+            enable_dqm_bypath_,
             enable_dqm_byls_);
       };
 
@@ -1487,7 +1624,7 @@ FastTimerService::postEvent(edm::StreamContext const& sc)
   auto & stream  = streams_[sid];
   auto & process = callgraph_.processDescription(pid);
 
-  // compute the event timing as the sum of all modules' timing
+  // measure the event resources as the sum of all modules' resources
   auto & data = stream.processes[pid].total;
   for (unsigned int i: process.modules_)
     data += stream.modules[i].total;
@@ -1497,6 +1634,9 @@ FastTimerService::postEvent(edm::StreamContext const& sc)
   bool last = isLastSubprocess(subprocess_event_check_[sid]);
   if (not last)
     return;
+
+  // measure the event resources explicitly
+  stream.event_measurement.measure_and_store(stream.event);
 
   // highlighted modules
   for (unsigned int group: boost::irange(0ul, highlight_modules_.size()))
@@ -1529,7 +1669,10 @@ FastTimerService::preSourceEvent(edm::StreamID sid)
 
   subprocess_event_check_[sid] = 0;
 
-  thread().measure();
+  // reuse the same measurement for the Source module and for the explicit begin of the Event
+  auto & measurement = thread();
+  measurement.measure_and_accumulate(stream.overhead);
+  stream.event_measurement = measurement;
 }
 
 
@@ -1584,7 +1727,9 @@ FastTimerService::postPathEvent(edm::StreamContext const& sc, edm::PathContext c
 void
 FastTimerService::preModuleEvent(edm::StreamContext const& sc, edm::ModuleCallingContext const & mcc)
 {
-  thread().measure();
+  unsigned int sid = sc.streamID().value();
+  auto & stream = streams_[sid];
+  thread().measure_and_accumulate(stream.overhead);
 }
 
 void
@@ -1731,6 +1876,22 @@ FastTimerService::postModuleStreamEndLumi(edm::StreamContext const&, edm::Module
   ignoredSignal(__func__);
 }
 
+void
+FastTimerService::on_scheduler_entry(bool worker)
+{
+  // initialise the measurement point for a thread that has newly joining the TBB pool
+  // FIXME any resources used or freed will be accounted to the next stream the uses this thread
+  thread().measure();
+}
+
+void
+FastTimerService::on_scheduler_exit(bool worker)
+{
+  // account any resources used or freed by the thread before leaving the TBB pool.
+  // FIXME arbitrarility use the first stream because there is no global measurement
+  auto & stream = streams_.front();
+  thread().measure_and_accumulate(stream.overhead);
+}
 
 FastTimerService::Measurement &
 FastTimerService::thread()
@@ -1749,6 +1910,7 @@ FastTimerService::fillDescriptions(edm::ConfigurationDescriptions & descriptions
   desc.addUntracked<bool>(        "printJobSummary",          true);
   desc.addUntracked<bool>(        "enableDQM",                true);
   desc.addUntracked<bool>(        "enableDQMbyModule",        false);
+  desc.addUntracked<bool>(        "enableDQMbyPath",          false);
   desc.addUntracked<bool>(        "enableDQMbyLumiSection",   false);
   desc.addUntracked<bool>(        "enableDQMbyProcesses",     false);
   desc.addUntracked<double>(      "dqmTimeRange",             1000. );   // ms

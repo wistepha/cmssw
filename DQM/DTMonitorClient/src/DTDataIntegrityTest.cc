@@ -33,8 +33,10 @@ DTDataIntegrityTest::DTDataIntegrityTest(const ParameterSet& ps) : nevents(0) {
 
   // prescale on the # of LS to update the test
   prescaleFactor = ps.getUntrackedParameter<int>("diagnosticPrescale", 1);
+
+  checkUros = ps.getUntrackedParameter<bool>("checkUros",false);
  
-  bookingdone = 0;
+  bookingdone = false;
  
 }
 
@@ -78,7 +80,7 @@ DTDataIntegrityTest::~DTDataIntegrityTest(){
   context.get<DTReadOutMappingRcd>().get(mapping);
 
   }
-  bookingdone = 1; 
+  bookingdone = true; 
 
 
   // counts number of lumiSegs 
@@ -100,7 +102,14 @@ DTDataIntegrityTest::~DTDataIntegrityTest(){
   counter++;
 
   //Loop on FED id
-  for (int dduId=FEDNumbering::MINDTFEDID; dduId<=FEDNumbering::MAXDTFEDID; ++dduId){
+  //Monitoring only real used FEDs
+  int FEDIDmax=FEDNumbering::MAXDTFEDID;
+  int FEDIDmin=FEDNumbering::MINDTFEDID;
+  if (checkUros){
+	FEDIDmin=FEDNumbering::MINDTUROSFEDID;
+	FEDIDmax=FEDNumbering::MAXDTUROSFEDID;
+	}
+  for (int dduId=FEDIDmin; dduId<=FEDIDmax; ++dduId){
     LogTrace ("DTDQM|DTRawToDigi|DTMonitorClient|DTDataIntegrityTest")
       <<"[DTDataIntegrityTest]:FED Id: "<<dduId;
  
@@ -111,18 +120,20 @@ DTDataIntegrityTest::~DTDataIntegrityTest(){
     
     //Check if the list of ROS is compatible with the channels enabled
     string rosStatusName = "DT/00-DataIntegrity/FED" + dduId_s.str() + "/FED" + dduId_s.str() + "_ROSStatus";
+    if (checkUros) rosStatusName = "DT/00-DataIntegrity/FED" + dduId_s.str() + "/FED" + dduId_s.str() + "_uROSStatus";
     MonitorElement * FED_ROSStatus = igetter.get(rosStatusName);
      
     // Get the error summary histo
     string fedSummaryName = "DT/00-DataIntegrity/FED" + dduId_s.str() + "_ROSSummary";
+    if (checkUros) fedSummaryName = "DT/00-DataIntegrity/FED" + dduId_s.str() + "_uROSSummary";
     MonitorElement * FED_ROSSummary = igetter.get(fedSummaryName);
 
-    // Get the event lenght plot (used to counr # of processed evts)
+    // Get the event lenght plot (used to count # of processed evts)
     string fedEvLenName = "DT/00-DataIntegrity/FED" + dduId_s.str() + "/FED" + dduId_s.str() + "_EventLenght";
     MonitorElement * FED_EvLenght = igetter.get(fedEvLenName);
 
     // Get the histos for FED integrity
-    string fedIntegrityFolder = "DT/FEDIntegrity/";
+    string fedIntegrityFolder = "DT/00-DataIntegrity/";
     MonitorElement * hFEDEntry = igetter.get(fedIntegrityFolder+"FEDEntries");
     MonitorElement * hFEDFatal = igetter.get(fedIntegrityFolder+"FEDFatal");
     MonitorElement * hFEDNonFatal = igetter.get(fedIntegrityFolder+"FEDNonFatal");

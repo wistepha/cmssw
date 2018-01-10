@@ -23,7 +23,7 @@ class PFClusterBuilderBase {
     _nSeeds(0), _nClustersFound(0),    
     _minFractionToKeep(conf.getParameter<double>("minFractionToKeep")),
     _algoName(conf.getParameter<std::string>("algoName")) {
-    _positionCalc.reset(NULL);
+    _positionCalc.reset(nullptr);
     if( conf.exists("positionCalc") ) {
       const edm::ParameterSet& pcConf = conf.getParameterSet("positionCalc");
       const std::string& algo = pcConf.getParameter<std::string>("algoName");
@@ -63,6 +63,8 @@ class PFClusterBuilderBase {
   std::string _algoName;
   
 };
+
+std::ostream& operator<<(std::ostream& o, const PFClusterBuilderBase& a);
 
 #include "FWCore/PluginManager/interface/PluginFactory.h"
 typedef edmplugin::PluginFactory< PFClusterBuilderBase* (const edm::ParameterSet&) > PFClusterBuilderFactory;

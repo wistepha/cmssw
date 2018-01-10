@@ -57,21 +57,21 @@ l1tStage2uGMTZeroSupp = cms.EDAnalyzer(
                                       0x000001FF,
                                       0x00000000),
     # mask for outputs (pt==0 defines empty muon)
-    maskCapId2 = cms.untracked.vint32(0x0003FC00,
+    maskCapId2 = cms.untracked.vint32(0x0007FC00,
                                       0x00000000,
-                                      0x0003FC00,
+                                      0x0007FC00,
                                       0x00000000,
-                                      0x0003FC00,
+                                      0x0007FC00,
                                       0x00000000),
     # mask for validation event outputs (pt==0 defines empty muon)
-    maskCapId3 = cms.untracked.vint32(0x0003FC00,
+    maskCapId3 = cms.untracked.vint32(0x0007FC00,
                                       0x00000000,
-                                      0x0003FC00,
+                                      0x0007FC00,
                                       0x00000000,
-                                      0x0003FC00,
+                                      0x0007FC00,
                                       0x00000000),
     # no masks defined for caption IDs 0 and 4-11
-    maxFEDReadoutSize = cms.untracked.int32(9000),
+    maxFEDReadoutSize = cms.untracked.int32(10000),
     monitorDir = cms.untracked.string("L1T/L1TStage2uGMT/zeroSuppression/AllEvts"),
     verbose = cms.untracked.bool(False),
 )
@@ -79,6 +79,12 @@ l1tStage2uGMTZeroSupp = cms.EDAnalyzer(
 # ZS of validation events (to be used after fat event filter)
 l1tStage2uGMTZeroSuppFatEvts = l1tStage2uGMTZeroSupp.clone()
 l1tStage2uGMTZeroSuppFatEvts.monitorDir = cms.untracked.string("L1T/L1TStage2uGMT/zeroSuppression/FatEvts")
+
+# List of bins to ignore
+ignoreBins = {
+    'Bmtf' : [1],
+    'Emtf' : [1]
+    }
 
 # compares the unpacked BMTF output regional muon collection with the unpacked uGMT input regional muon collection from BMTF
 # only muons that do not match are filled in the histograms
@@ -90,6 +96,20 @@ l1tStage2BmtfOutVsuGMTIn = cms.EDAnalyzer(
     regionalMuonCollection1Title = cms.untracked.string("BMTF output data"),
     regionalMuonCollection2Title = cms.untracked.string("uGMT input data from BMTF"),
     summaryTitle = cms.untracked.string("Summary of comparison between BMTF output muons and uGMT input muons from BMTF"),
+    ignoreBin = cms.untracked.vint32(ignoreBins['Bmtf']),
+    verbose = cms.untracked.bool(False),
+)
+
+# compares the unpacked OMTF output regional muon collection with the unpacked uGMT input regional muon collection from OMTF
+# only muons that do not match are filled in the histograms
+l1tStage2OmtfOutVsuGMTIn = cms.EDAnalyzer(
+    "L1TStage2RegionalMuonCandComp",
+    regionalMuonCollection1 = cms.InputTag("omtfStage2Digis", ""),
+    regionalMuonCollection2 = cms.InputTag("gmtStage2Digis", "OMTF"),
+    monitorDir = cms.untracked.string("L1T/L1TStage2uGMT/OMTFoutput_vs_uGMTinput"),
+    regionalMuonCollection1Title = cms.untracked.string("OMTF output data"),
+    regionalMuonCollection2Title = cms.untracked.string("uGMT input data from OMTF"),
+    summaryTitle = cms.untracked.string("Summary of comparison between OMTF output muons and uGMT input muons from OMTF"),
     verbose = cms.untracked.bool(False),
 )
 
@@ -103,19 +123,7 @@ l1tStage2EmtfOutVsuGMTIn = cms.EDAnalyzer(
     regionalMuonCollection1Title = cms.untracked.string("EMTF output data"),
     regionalMuonCollection2Title = cms.untracked.string("uGMT input data from EMTF"),
     summaryTitle = cms.untracked.string("Summary of comparison between EMTF output muons and uGMT input muons from EMTF"),
-    verbose = cms.untracked.bool(False),
-)
-
-# compares the unpacked uGMT muon collection to the unpacked uGT muon collection
-# only muons that do not match are filled in the histograms
-l1tStage2uGMTOutVsuGTIn = cms.EDAnalyzer(
-    "L1TStage2MuonComp",
-    muonCollection1 = cms.InputTag("gmtStage2Digis", "Muon"),
-    muonCollection2 = cms.InputTag("gtStage2Digis", "Muon"),
-    monitorDir = cms.untracked.string("L1T/L1TStage2uGMT/uGMToutput_vs_uGTinput"),
-    muonCollection1Title = cms.untracked.string("uGMT output muons"),
-    muonCollection2Title = cms.untracked.string("uGT input muons"),
-    summaryTitle = cms.untracked.string("Summary of comparison between uGMT output muons and uGT input muons"),
+    ignoreBin = cms.untracked.vint32(ignoreBins['Emtf']),
     verbose = cms.untracked.bool(False),
 )
 
@@ -167,8 +175,8 @@ l1tStage2uGMTOnlineDQMSeq = cms.Sequence(
     l1tStage2uGMTIntermediateEMTFPos +
     l1tStage2uGMTZeroSupp +
     l1tStage2BmtfOutVsuGMTIn +
-    l1tStage2EmtfOutVsuGMTIn +
-    l1tStage2uGMTOutVsuGTIn
+    l1tStage2OmtfOutVsuGMTIn +
+    l1tStage2EmtfOutVsuGMTIn
 )
 
 l1tStage2uGMTValidationEventOnlineDQMSeq = cms.Sequence(

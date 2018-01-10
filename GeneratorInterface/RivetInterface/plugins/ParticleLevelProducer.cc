@@ -46,6 +46,7 @@ void ParticleLevelProducer::addGenJet(Rivet::Jet jet, std::unique_ptr<reco::GenJ
   genJet.setP4(p4(jet));
   genJet.setVertex(genVertex_);
   if ( jet.bTagged() ) genJet.setPdgId(5);
+  else if ( jet.cTagged() ) genJet.setPdgId(4);
   genJet.setJetArea(pjet.has_area() ? pjet.area() : 0);
   
   for ( auto const & p : jet.particles()) {
@@ -128,7 +129,7 @@ void ParticleLevelProducer::produce(edm::Event& event, const edm::EventSetup& ev
     lepJet.setPdgId(lepton.pdgId());
     lepJet.setCharge(lepton.charge());
     
-    const auto cl = lepton.constituentLepton();
+    const auto& cl = lepton.constituentLepton();
     consts->push_back(reco::GenParticle(cl.charge(), p4(cl), genVertex_, cl.pdgId(), 1, true));
     lepJet.addDaughter(edm::refToPtr(reco::GenParticleRef(constsRefHandle, ++iConstituent)));
     

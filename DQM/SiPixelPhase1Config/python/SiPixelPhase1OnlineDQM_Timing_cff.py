@@ -3,8 +3,7 @@ import FWCore.ParameterSet.Config as cms
 from DQM.SiPixelPhase1Common.HistogramManager_cfi import *
 
 SuperimoposePlotsInOnlineBlocks=True
-
-
+IsOffline.enabled=False
 
 
 StandardSpecifications1D.append(
@@ -110,9 +109,6 @@ from DQM.SiPixelPhase1RawData.SiPixelPhase1RawData_cfi import *
 from DQM.SiPixelPhase1Common.SiPixelPhase1GeometryDebug_cfi import *
 
 from DQM.SiPixelPhase1TrackEfficiency.SiPixelPhase1TrackEfficiency_cfi import *
-#Summary maps
-#from DQM.SiPixelPhase1Summary.SiPixelPhase1Summary_cfi import *
-
 
 siPixelPhase1OnlineDQM_source = cms.Sequence(
    SiPixelPhase1DigisAnalyzer
@@ -120,7 +116,6 @@ siPixelPhase1OnlineDQM_source = cms.Sequence(
  + SiPixelPhase1RawDataAnalyzer
  + SiPixelPhase1TrackClustersAnalyzer
  + SiPixelPhase1TrackResidualsAnalyzer
-# + SiPixelPhase1GeometryDebugAnalyzer
 )
 
 siPixelPhase1OnlineDQM_harvesting = cms.Sequence(
@@ -130,20 +125,18 @@ siPixelPhase1OnlineDQM_harvesting = cms.Sequence(
  + SiPixelPhase1TrackClustersHarvester
  + SiPixelPhase1TrackResidualsHarvester
  + SiPixelPhase1TrackEfficiencyHarvester
-# + RunQTests_online
-# + SiPixelPhase1Summary_Online
-# + SiPixelPhase1GeometryDebugHarvester
 )
 
 ## Additional settings for cosmic runs 
 
 SiPixelPhase1TrackClustersAnalyzer_cosmics = SiPixelPhase1TrackClustersAnalyzer.clone()
 SiPixelPhase1TrackClustersAnalyzer_cosmics.tracks  = cms.InputTag( "ctfWithMaterialTracksP5" )
+SiPixelPhase1TrackClustersAnalyzer_cosmics.VertexCut = cms.untracked.bool(False)
 
 SiPixelPhase1TrackResidualsAnalyzer_cosmics = SiPixelPhase1TrackResidualsAnalyzer.clone()
 SiPixelPhase1TrackResidualsAnalyzer_cosmics.Tracks = cms.InputTag( "ctfWithMaterialTracksP5" )
 SiPixelPhase1TrackResidualsAnalyzer_cosmics.trajectoryInput = "ctfWithMaterialTracksP5"
-SiPixelPhase1TrackResidualsAnalyzer_cosmics.VertexCut = False
+SiPixelPhase1TrackResidualsAnalyzer_cosmics.VertexCut = cms.untracked.bool(False)
 
 SiPixelPhase1TrackEfficiencyAnalyzer_cosmics=SiPixelPhase1TrackEfficiencyAnalyzer.clone()
 SiPixelPhase1TrackEfficiencyAnalyzer_cosmics.tracks=cms.InputTag( "ctfWithMaterialTracksP5" )
@@ -154,21 +147,23 @@ siPixelPhase1OnlineDQM_source_cosmics = cms.Sequence(
  + SiPixelPhase1RawDataAnalyzer
  + SiPixelPhase1TrackClustersAnalyzer_cosmics
  + SiPixelPhase1TrackResidualsAnalyzer_cosmics
-+ SiPixelPhase1TrackEfficiencyAnalyzer_cosmics
-# + SiPixelPhase1GeometryDebugAnalyzer
-   )
+)
 
 ## Additional settings for pp_run (Phase 0 test)
 SiPixelPhase1TrackClustersAnalyzer_pprun = SiPixelPhase1TrackClustersAnalyzer.clone()
 SiPixelPhase1TrackClustersAnalyzer_pprun.tracks  = cms.InputTag( "initialStepTracksPreSplitting" )
+SiPixelPhase1TrackClustersAnalyzer_pprun.clusterShapeCache = cms.InputTag("siPixelClusterShapeCachePreSplitting")
+SiPixelPhase1TrackClustersAnalyzer_pprun.vertices = cms.InputTag('firstStepPrimaryVerticesPreSplitting')
+SiPixelPhase1TrackClustersAnalyzer_pprun.VertexCut = cms.untracked.bool(False)
 
 SiPixelPhase1TrackResidualsAnalyzer_pprun = SiPixelPhase1TrackResidualsAnalyzer.clone()
 SiPixelPhase1TrackResidualsAnalyzer_pprun.Tracks = cms.InputTag( "initialStepTracksPreSplitting" )
 SiPixelPhase1TrackResidualsAnalyzer_pprun.trajectoryInput = "initialStepTracksPreSplitting"
-SiPixelPhase1TrackResidualsAnalyzer_pprun.VertexCut = False
+SiPixelPhase1TrackResidualsAnalyzer_pprun.VertexCut = cms.untracked.bool(False)
 
 SiPixelPhase1TrackEfficiencyAnalyzer_pprun=SiPixelPhase1TrackEfficiencyAnalyzer.clone()
 SiPixelPhase1TrackEfficiencyAnalyzer_pprun.tracks=cms.InputTag( "initialStepTracksPreSplitting" )
+SiPixelPhase1TrackEfficiencyAnalyzer_pprun.VertexCut = cms.untracked.bool(False)
 
 siPixelPhase1OnlineDQM_source_pprun = cms.Sequence(
    SiPixelPhase1DigisAnalyzer
@@ -177,6 +172,5 @@ siPixelPhase1OnlineDQM_source_pprun = cms.Sequence(
  + SiPixelPhase1TrackClustersAnalyzer_pprun
  + SiPixelPhase1TrackResidualsAnalyzer_pprun
  + SiPixelPhase1TrackEfficiencyAnalyzer_pprun
-# + SiPixelPhase1GeometryDebugAnalyzer
 )
 

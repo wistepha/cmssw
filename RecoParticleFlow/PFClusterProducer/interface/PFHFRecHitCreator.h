@@ -39,7 +39,7 @@ class PFHFRecHitCreator final :  public  PFRecHitCreatorBase {
 
 
 
-    void importRecHits(std::unique_ptr<reco::PFRecHitCollection>&out,std::unique_ptr<reco::PFRecHitCollection>& cleaned ,const edm::Event& iEvent,const edm::EventSetup& iSetup) {
+    void importRecHits(std::unique_ptr<reco::PFRecHitCollection>&out,std::unique_ptr<reco::PFRecHitCollection>& cleaned ,const edm::Event& iEvent,const edm::EventSetup& iSetup) override {
 
 
       reco::PFRecHitCollection tmpOut;
@@ -105,23 +105,17 @@ class PFHFRecHitCreator final :  public  PFRecHitCreatorBase {
       }
       //Sort by DetID the collection
       DetIDSorter sorter;
-      if (tmpOut.size()>0)
+      if (!tmpOut.empty())
 	std::sort(tmpOut.begin(),tmpOut.end(),sorter); 
 
 
       /////////////////////HF DUAL READOUT/////////////////////////
       
-      double lONG=0.;
-      double sHORT=0.;
-
       for (auto& hit : tmpOut) {
-	lONG=0.0;
-	sHORT=0.0;
-
 	reco::PFRecHit newHit = hit;
 	const HcalDetId& detid = (HcalDetId)hit.detId();
 	if (detid.depth()==1) {
-	  lONG=hit.energy();
+	  double lONG=hit.energy();
 	  //find the short hit
 	  HcalDetId shortID (HcalForward, detid.ieta(), detid.iphi(), 2);
 	  auto found_hit = std::lower_bound(tmpOut.begin(),tmpOut.end(),
@@ -131,7 +125,7 @@ class PFHFRecHitCreator final :  public  PFRecHitCreatorBase {
 					     return  a.detId() < b.rawId();
 					    });
 	if( found_hit != tmpOut.end() && found_hit->detId() == shortID.rawId() ) {
-	  sHORT = found_hit->energy();
+	  double sHORT = found_hit->energy();
 	    //Ask for fraction
 	    double energy = lONG-sHORT;
 
@@ -158,7 +152,7 @@ class PFHFRecHitCreator final :  public  PFRecHitCreatorBase {
 
 	}
 	else {
-	  sHORT=hit.energy();
+	  double sHORT=hit.energy();
 	  HcalDetId longID (HcalForward, detid.ieta(), detid.iphi(), 1);
 	  auto found_hit = std::lower_bound(tmpOut.begin(),tmpOut.end(),
 					    longID,
@@ -168,7 +162,7 @@ class PFHFRecHitCreator final :  public  PFRecHitCreatorBase {
 					    });
 	  double energy = 2*sHORT;
 	  if( found_hit != tmpOut.end() && found_hit->detId() == longID.rawId() ) {
-	    lONG = found_hit->energy();
+	    double lONG = found_hit->energy();
 	    //Ask for fraction
 
 	    //If in this case lONG-sHORT<0 add the energy to the sHORT
@@ -218,8 +212,8 @@ class PFHFRecHitCreator final :  public  PFRecHitCreatorBase {
 
     class DetIDSorter {
     public:
-      DetIDSorter() {}
-      ~DetIDSorter() {}
+      DetIDSorter() = default;
+      ~DetIDSorter() = default;
 
       bool operator()(const reco::PFRecHit& a,
 		     const reco::PFRecHit& b) {

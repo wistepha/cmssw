@@ -1,5 +1,6 @@
 
 #include "GeneratorInterface/GenFilters/interface/MCSingleParticleFilter.h"
+#include "GeneratorInterface/GenFilters/interface/MCFilterZboostHelper.h"
 
 #include "SimDataFormats/GeneratorProducts/interface/HepMCProduct.h"
 #include <iostream>
@@ -36,7 +37,7 @@ betaBoost(iConfig.getUntrackedParameter("BetaBoost",0.))
      ||  (etaMin.size() > 1 && particleID.size() != etaMin.size()) 
      ||  (etaMax.size() > 1 && particleID.size() != etaMax.size())
      ||  (status.size() > 1 && particleID.size() != status.size()) ) {
-      cout << "WARNING: MCPROCESSFILTER : size of MinPthat and/or MaxPthat not matching with ProcessID size!!" << endl;
+	    edm::LogInfo("MCSingleParticleFilter") << "WARNING: size of MinPthat and/or MaxPthat not matching with ProcessID size!!" << endl;
     }
 
     // if ptMin size smaller than particleID , fill up further with defaults
@@ -82,7 +83,7 @@ MCSingleParticleFilter::~MCSingleParticleFilter()
 
 
 // ------------ method called to skim the data  ------------
-bool MCSingleParticleFilter::filter(edm::Event& iEvent, const edm::EventSetup& iSetup)
+bool MCSingleParticleFilter::filter(edm::StreamID, edm::Event& iEvent, const edm::EventSetup& iSetup) const
 {
    using namespace edm;
    bool accepted = false;
@@ -102,7 +103,7 @@ bool MCSingleParticleFilter::filter(edm::Event& iEvent, const edm::EventSetup& i
 	 if ( (*p)->momentum().perp() > ptMin[i]
 	      && ((*p)->status() == status[i] || status[i] == 0)) {
 
-           HepMC::FourVector mom = zboost((*p)->momentum());
+           HepMC::FourVector mom = MCFilterZboostHelper::zboost((*p)->momentum(),betaBoost);
            if ( mom.eta() > etaMin[i] && mom.eta() < etaMax[i] ) {
              accepted = true;
            }
@@ -115,18 +116,6 @@ bool MCSingleParticleFilter::filter(edm::Event& iEvent, const edm::EventSetup& i
 
    }
    
-   if (accepted){ return true; } else {return false;}
+   return accepted;
    
 }
-
-
-HepMC::FourVector MCSingleParticleFilter::zboost(const HepMC::FourVector& mom) {
-   //Boost this Lorentz vector (from TLorentzVector::Boost)
-   double b2 = betaBoost*betaBoost;
-   double gamma = 1.0 / sqrt(1.0 - b2);
-   double bp = betaBoost*mom.pz();
-   double gamma2 = b2 > 0 ? (gamma - 1.0)/b2 : 0.0;
-
-   return HepMC::FourVector(mom.px(), mom.py(), mom.pz() + gamma2*bp*betaBoost + gamma*betaBoost*mom.e(), gamma*(mom.e()+bp));
-}
-

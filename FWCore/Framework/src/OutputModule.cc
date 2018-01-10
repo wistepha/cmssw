@@ -224,6 +224,23 @@ namespace edm {
     return result;
   }
   
+  bool OutputModule::needToRunSelection() const {
+    return !wantAllEvents_;
+  }
+  
+  std::vector<ProductResolverIndexAndSkipBit>
+  OutputModule::productsUsedBySelection() const {
+    std::vector<ProductResolverIndexAndSkipBit> returnValue;
+    auto const& s = selectors_[0];
+    auto const n = s.numberOfTokens();
+    returnValue.reserve(n);
+    
+    for(unsigned int i=0; i< n;++i) {
+      returnValue.emplace_back(uncheckedIndexFrom(s.token(i)));
+    }
+    return returnValue;
+  }
+
   bool OutputModule::prePrefetchSelection(StreamID id, EventPrincipal const& ep, ModuleCallingContext const* mcc) {
     if(wantAllEvents_) return true;
     auto& s = selectors_[id.value()];
@@ -339,20 +356,6 @@ namespace edm {
 
   void OutputModule::doRespondToCloseInputFile(FileBlock const& fb) {
     respondToCloseInputFile(fb);
-  }
-
-  void
-  OutputModule::doPreForkReleaseResources() {
-    preForkReleaseResources();
-  }
-
-  void
-  OutputModule::doPostForkReacquireResources(unsigned int iChildIndex, unsigned int iNumberOfChildren) {
-    postForkReacquireResources(iChildIndex, iNumberOfChildren);
-  }
-
-  void OutputModule::maybeOpenFile() {
-    if(!isFileOpen()) reallyOpenFile();
   }
 
   void OutputModule::doCloseFile() {

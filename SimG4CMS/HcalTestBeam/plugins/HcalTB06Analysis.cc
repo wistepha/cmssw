@@ -72,7 +72,7 @@ HcalTB06Analysis::HcalTB06Analysis(const edm::ParameterSet &p) : count(0) {
 
   m_idxetaHcal   = (int)(beamEta/0.087) + 1;
   m_idxphiHcal   = (int)(beamPhi/0.087) + 6;
-  if(m_idxphiHcal > 72) { m_idxphiHcal -= 72; }
+  if(m_idxphiHcal > 72) { m_idxphiHcal -= 73; }
 
   edm::ParameterSet ptb = p.getParameter<edm::ParameterSet>("TestBeamAnalysis");
   m_timeLimit = ptb.getParameter<double>("TimeLimit");
@@ -80,6 +80,7 @@ HcalTB06Analysis::HcalTB06Analysis(const edm::ParameterSet &p) : count(0) {
   m_widthHcal = ptb.getParameter<double>("HcalWidth");
   m_factEcal  = ptb.getParameter<double>("EcalFactor");
   m_factHcal  = ptb.getParameter<double>("HcalFactor");
+  double eMIP = ptb.getParameter<double>("MIP");
 
   edm::LogInfo("HcalTB06Analysis") 
     << "Beam parameters: E(GeV)= " << m_ener
@@ -94,6 +95,7 @@ HcalTB06Analysis::HcalTB06Analysis(const edm::ParameterSet &p) : count(0) {
     << "  EcalWidth= " << m_widthEcal << " GeV" 
     << "\n        HcalFactor= " << m_factHcal
     << "  HcalWidth= " << m_widthHcal << " GeV"
+    << "  MIP=       " << eMIP << " GeV"
     << "\n        TimeLimit=  " << m_timeLimit << " ns" << "\n";
   m_histo = new HcalTB06Histo(ptb);
 } 
@@ -219,6 +221,6 @@ void HcalTB06Analysis::analyze(const edm::Event & evt, const edm::EventSetup&)
 			    << eTrig[0] << ":" << eTrig[1] << ":" << eTrig[2]
 			    << ":" << eTrig[3] << ":" << eTrig[4] << ":" 
 			    << eTrig[5] << ":" << eTrig[6];
-;
+
   m_histo->fillTree(eCalo,eTrig);
 }

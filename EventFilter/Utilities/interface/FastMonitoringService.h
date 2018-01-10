@@ -131,7 +131,7 @@ namespace evf{
       // moved into base class in EventFilter/Utilities for compatibility with MicroStateServiceClassic
       static const std::string nopath_;
       FastMonitoringService(const edm::ParameterSet&,edm::ActivityRegistry&);
-      ~FastMonitoringService();
+      ~FastMonitoringService() override;
       static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
      
       std::string makePathLegendaJson();
@@ -168,8 +168,8 @@ namespace evf{
       void setExceptionDetected(unsigned int ls);
 
       //this is still needed for use in special functions like DQM which are in turn framework services
-      void setMicroState(MicroStateService::Microstate);
-      void setMicroState(edm::StreamID, MicroStateService::Microstate);
+      void setMicroState(MicroStateService::Microstate) override;
+      void setMicroState(edm::StreamID, MicroStateService::Microstate) override;
 
       void accumulateFileSize(unsigned int lumi, unsigned long fileSize);
       void startedLookingForFile();
@@ -181,7 +181,7 @@ namespace evf{
       {
         unsigned int processed = getEventsProcessedForLumi(lumi);
         if (proc) *proc = processed;
-        return !getAbortFlagForLumi(lumi) && (processed || emptyLumisectionMode_);
+        return !getAbortFlagForLumi(lumi);
       }
       std::string getRunDirName() const { return runDirectory_.stem().string(); }
       void setInputSource(FedRawDataInputSource *inputSource) {inputSource_=inputSource;}
@@ -220,7 +220,7 @@ namespace evf{
                 }
                 fmt_.monlock_.unlock();
                 for (unsigned int i=0;i<nStreams_;i++) {
-                  if (CSVv[i].size())
+                  if (!CSVv[i].empty())
                     fmt_.jsonMonitor_->outputCSV(fastPathList_[i],CSVv[i]);
                 }
               }
@@ -228,7 +228,7 @@ namespace evf{
                 std::string CSV = fmt_.jsonMonitor_->getCSVString();
                 //release mutex before writing out fast path file
                 fmt_.monlock_.unlock();
-                if (CSV.size())
+                if (!CSV.empty())
                   fmt_.jsonMonitor_->outputCSV(fastPath_,CSV);
               }
             }
@@ -245,8 +245,8 @@ namespace evf{
       Encoding encModule_;
       std::vector<Encoding> encPath_;
       FedRawDataInputSource * inputSource_ = nullptr;
-      std::atomic<FastMonitoringThread::InputState> inputState_;
-      std::atomic<FastMonitoringThread::InputState> inputSupervisorState_;
+      std::atomic<FastMonitoringThread::InputState> inputState_           { FastMonitoringThread::InputState::inInit };
+      std::atomic<FastMonitoringThread::InputState> inputSupervisorState_ { FastMonitoringThread::InputState::inInit };
 
       unsigned int nStreams_;
       unsigned int nThreads_;
@@ -263,8 +263,6 @@ namespace evf{
       timeval fileLookStart_, fileLookStop_;//this could also be calculated in the input source
 
       unsigned int lastGlobalLumi_;
-      std::queue<unsigned int> lastGlobalLumisClosed_;
-      bool isGlobalLumiTransition_;
       std::atomic<bool> isInitTransition_;
       unsigned int lumiFromSource_;
 
@@ -314,7 +312,6 @@ namespace evf{
       std::atomic<bool> monInit_;
       bool exception_detected_ = false;
       std::vector<unsigned int> exceptionInLS_;
-      bool emptyLumisectionMode_ = false;
       std::vector<std::string> fastPathList_;
 
     };

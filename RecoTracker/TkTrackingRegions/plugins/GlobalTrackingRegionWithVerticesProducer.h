@@ -31,13 +31,15 @@ public:
     theSigmaZVertex     = regionPSet.getParameter<double>("sigmaZVertex");
     theFixedError       = regionPSet.getParameter<double>("fixedError");
 
+    theMaxNVertices     = regionPSet.getParameter<int>("maxNVertices");
+
     theUseFoundVertices = regionPSet.getParameter<bool>("useFoundVertices");
     theUseFakeVertices  = regionPSet.getParameter<bool>("useFakeVertices");
     theUseFixedError    = regionPSet.getParameter<bool>("useFixedError");
     token_vertex      = iC.consumes<reco::VertexCollection>(regionPSet.getParameter<edm::InputTag>("VertexCollection"));
   }   
 
-  virtual ~GlobalTrackingRegionWithVerticesProducer(){}
+  ~GlobalTrackingRegionWithVerticesProducer() override{}
 
   static void fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
     edm::ParameterSetDescription desc;
@@ -53,6 +55,7 @@ public:
     desc.add<double>("ptMin", 0.9);
     desc.add<bool>("useFoundVertices", true);
     desc.add<bool>("useFakeVertices", false);
+    desc.add<int>("maxNVertices", -1)->setComment("-1 for all vertices");
     desc.add<double>("nSigmaZ", 4.0);
 
     // Only for backwards-compatibility
@@ -62,7 +65,7 @@ public:
     descriptions.add("globalTrackingRegionWithVertices", descRegion);
   }
 
-  virtual std::vector<std::unique_ptr<TrackingRegion> > regions
+  std::vector<std::unique_ptr<TrackingRegion> > regions
     (const edm::Event& ev, const edm::EventSetup&) const override
   {
     std::vector<std::unique_ptr<TrackingRegion> > result;
@@ -90,6 +93,8 @@ public:
 	  GlobalPoint theOrigin_       = GlobalPoint(iV->x(),iV->y(),iV->z());
 	  double theOriginHalfLength_ = (theUseFixedError ? theFixedError : (iV->zError())*theSigmaZVertex); 
 	  result.push_back( std::make_unique<GlobalTrackingRegion>(thePtMin, theOrigin_, theOriginRadius, theOriginHalfLength_, thePrecise, theUseMS) );
+	  if(theMaxNVertices >= 0 && result.size() >= static_cast<unsigned>(theMaxNVertices))
+	    break;
       }
       
       if (result.empty()) {
@@ -113,6 +118,7 @@ private:
 
   double theSigmaZVertex;
   double theFixedError;
+  int theMaxNVertices;
   bool thePrecise;
   bool theUseMS;
   

@@ -56,7 +56,7 @@ namespace edm {
     typedef OutputModule ModuleType;
 
     explicit OutputModule(ParameterSet const& pset);
-    virtual ~OutputModule();
+    ~OutputModule() override;
 
     OutputModule(OutputModule const&) = delete; // Disallow copying and moving
     OutputModule& operator=(OutputModule const&) = delete; // Disallow copying and moving
@@ -80,6 +80,11 @@ namespace edm {
     static void fillDescriptions(ConfigurationDescriptions& descriptions);
     static const std::string& baseType();
     static void prevalidate(ConfigurationDescriptions& );
+
+    static bool wantsGlobalRuns() {return true;}
+    static bool wantsGlobalLuminosityBlocks() {return true;}
+    static bool wantsStreamRuns() {return false;}
+    static bool wantsStreamLuminosityBlocks() {return false;};
 
     bool wantAllEvents() const {return wantAllEvents_;}
 
@@ -183,8 +188,6 @@ namespace edm {
     void doOpenFile(FileBlock const& fb);
     void doRespondToOpenInputFile(FileBlock const& fb);
     void doRespondToCloseInputFile(FileBlock const& fb);
-    void doPreForkReleaseResources();
-    void doPostForkReacquireResources(unsigned int iChildIndex, unsigned int iNumberOfChildren);
     void doRegisterThinnedAssociations(ProductRegistry const&,
                                        ThinnedAssociationsHelper&) { }
 
@@ -197,17 +200,14 @@ namespace edm {
     /// Tell the OutputModule that is must end the current file.
     void doCloseFile();
 
-    /// Tell the OutputModule to open an output file, if one is not
-    /// already open.
-    void maybeOpenFile();
-
-
     // Do the end-of-file tasks; this is only called internally, after
     // the appropriate tests have been done.
     virtual void reallyCloseFile();
 
     void registerProductsAndCallbacks(OutputModule const*, ProductRegistry const*) {}
     
+    bool needToRunSelection() const;
+    std::vector<ProductResolverIndexAndSkipBit> productsUsedBySelection() const;
     bool prePrefetchSelection(StreamID id, EventPrincipal const&, ModuleCallingContext const*);
 
     /// Ask the OutputModule if we should end the current file.
@@ -225,12 +225,10 @@ namespace edm {
     virtual void openFile(FileBlock const&) {}
     virtual void respondToOpenInputFile(FileBlock const&) {}
     virtual void respondToCloseInputFile(FileBlock const&) {}
-    virtual void preForkReleaseResources() {}
-    virtual void postForkReacquireResources(unsigned int /*iChildIndex*/, unsigned int /*iNumberOfChildren*/) {}
+
+    bool hasAcquire() const { return false; }
 
     virtual bool isFileOpen() const { return true; }
-
-    virtual void reallyOpenFile() {}
 
     void keepThisBranch(BranchDescription const& desc,
                         std::map<BranchID, BranchDescription const*>& trueBranchIDToKeptBranchDesc,

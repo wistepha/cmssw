@@ -24,7 +24,7 @@
 #include <thread>
 #include <sys/wait.h>
 #include <sstream>
-#include <string.h>
+#include <cstring>
 #include <poll.h>
 #include <atomic>
 
@@ -45,7 +45,6 @@
 #include "TTree.h"
 #include "TVirtualStreamerInfo.h"
 
-#include "TThread.h"
 #include "TClassTable.h"
 
 #include <memory>
@@ -74,7 +73,7 @@ namespace edm {
         ThreadTracker() : tbb::task_scheduler_observer() {
           observe(true);
         }
-        void on_scheduler_entry(bool) {
+        void on_scheduler_entry(bool) override {
           // ensure thread local has been allocated; not necessary on Linux with
           // the current cmsRun linkage, but could be an issue if the platform
           // or linkage leads to "lazy" allocation of the thread local.  By
@@ -90,7 +89,7 @@ namespace edm {
       };
 
       explicit InitRootHandlers(ParameterSet const& pset, ActivityRegistry& iReg);
-      virtual ~InitRootHandlers();
+      ~InitRootHandlers() override;
       
       static void fillDescriptions(ConfigurationDescriptions& descriptions);
       static void stacktraceFromThread();
@@ -101,16 +100,10 @@ namespace edm {
       static std::atomic<std::size_t> nextModule_, doneModules_;
     private:
       static char *const *getPstackArgv();
-      virtual void enableWarnings_() override;
-      virtual void ignoreWarnings_() override;
-      virtual void willBeUsingThreads() override;
-      virtual void initializeThisThreadForUse() override;
+      void enableWarnings_() override;
+      void ignoreWarnings_() override;
+      void willBeUsingThreads() override;
 
-      void cachePidInfoHandler(unsigned int, unsigned int) {
-        //this is called only on a fork, so the thread doesn't
-        // actually exist anymore
-        helperThread_.reset();
-        cachePidInfo();}
       void cachePidInfo();
       static void stacktraceHelperThread();
 
@@ -156,9 +149,9 @@ namespace {
     kFatal
   };
 
-  static thread_local bool s_ignoreWarnings = false;
+  thread_local bool s_ignoreWarnings = false;
 
-  static bool s_ignoreEverything = false;
+  bool s_ignoreEverything = false;
 
   void RootErrorHandlerImpl(int level, char const* location, char const* message) {
 
@@ -186,10 +179,10 @@ namespace {
   // Arrange to report the error location as furnished by Root
 
     std::string el_location = "@SUB=?";
-    if (location != 0) el_location = std::string("@SUB=")+std::string(location);
+    if (location != nullptr) el_location = std::string("@SUB=")+std::string(location);
 
     std::string el_message  = "?";
-    if (message != 0) el_message  = message;
+    if (message != nullptr) el_message  = message;
 
   // Try to create a meaningful id string using knowledge of ROOT error messages
   //
@@ -347,13 +340,20 @@ namespace {
           int ms_remaining = std::chrono::duration_cast<std::chrono::milliseconds>(end_time-std::chrono::steady_clock::now()).count();
           if (ms_remaining > 0)
           {
-            if (poll(&poll_info, 1, ms_remaining) == 0)
+            int rc = poll(&poll_info, 1, ms_remaining);
+            if (rc <= 0)
             {
+              if (rc < 0) {
+                if (errno == EINTR || errno == EAGAIN) { continue; }
+                rc = -errno;
+              } else {
+                rc = -ETIMEDOUT;
+              }
               if ((flags & O_NONBLOCK) != O_NONBLOCK)
               {
                 fcntl(fd, F_SETFL, flags);
               }
-              return -ETIMEDOUT;
+              return rc;
             }
           }
           else if (ms_remaining < 0)
@@ -417,7 +417,7 @@ namespace {
       sigset_t sigset;
       sigemptyset(&sigset);
       sigaddset(&sigset, RESUME_SIGNAL);
-      pthread_sigmask(SIG_UNBLOCK, &sigset, 0);
+      pthread_sigmask(SIG_UNBLOCK, &sigset, nullptr);
 #endif
       // sleep interrrupts on a handled delivery of the resume signal
       sleep(InitRootHandlers::stackTracePause());
@@ -430,6 +430,8 @@ namespace {
           strlcpy(buff, "\nModule: ", moduleBufferSize);
           if (edm::CurrentModuleOnThread::getCurrentModuleOnThread() != nullptr) {
             strlcat(buff, edm::CurrentModuleOnThread::getCurrentModuleOnThread()->moduleDescription()->moduleName().c_str(), moduleBufferSize);
+            strlcat(buff, ":", moduleBufferSize);
+            strlcat(buff, edm::CurrentModuleOnThread::getCurrentModuleOnThread()->moduleDescription()->moduleLabel().c_str(), moduleBufferSize);
           } else {
             strlcat(buff, "none", moduleBufferSize);
           }
@@ -451,13 +453,13 @@ namespace {
         act.sa_sigaction = sig_pause_for_stacktrace;
         act.sa_flags = 0;
         sigemptyset(&act.sa_mask);
-        sigaction(PAUSE_SIGNAL, &act, NULL);
+        sigaction(PAUSE_SIGNAL, &act, nullptr);
 
         // unblock pause signal globally, resume is unblocked in the pause handler
         sigset_t pausesigset;
         sigemptyset(&pausesigset);
         sigaddset(&pausesigset, PAUSE_SIGNAL);
-        sigprocmask(SIG_UNBLOCK, &pausesigset, 0);
+        sigprocmask(SIG_UNBLOCK, &pausesigset, nullptr);
 
         // send a pause signal to all CMSSW/TBB threads other than self
         for (auto id : tids) {
@@ -469,7 +471,7 @@ namespace {
 #ifdef RESUME_SIGNAL
         // install the "resume" handler
         act.sa_sigaction = sig_resume_handler;
-        sigaction(RESUME_SIGNAL, &act, NULL);
+        sigaction(RESUME_SIGNAL, &act, nullptr);
 #endif
       }
 #endif
@@ -531,6 +533,8 @@ namespace {
         char buff[moduleBufferSize] = "\nModule: ";
         if (edm::CurrentModuleOnThread::getCurrentModuleOnThread() != nullptr) {
           strlcat(buff, edm::CurrentModuleOnThread::getCurrentModuleOnThread()->moduleDescription()->moduleName().c_str(), moduleBufferSize);
+          strlcat(buff, ":", moduleBufferSize);
+          strlcat(buff, edm::CurrentModuleOnThread::getCurrentModuleOnThread()->moduleDescription()->moduleLabel().c_str(), moduleBufferSize);
         } else {
           strlcat(buff, "none", moduleBufferSize);
         }
@@ -731,36 +735,6 @@ namespace edm {
       return 1;
     }
     
-    namespace {
-      
-      void localInitializeThisThreadForUse() {
-        static thread_local TThread guard;
-      }
-      
-      class InitializeThreadTask : public tbb::task {
-      public:
-        InitializeThreadTask(std::atomic<unsigned int>* counter,
-                             tbb::task* waitingTask):
-        threadsLeft_(counter),
-        waitTask_(waitingTask) {}
-        
-        tbb::task* execute() override {
-          //For each tbb thread, setup the initialization
-          // required by ROOT and then wait until all
-          // threads have done so in order to guarantee the all get setup
-          
-          localInitializeThisThreadForUse();
-          (*threadsLeft_)--;
-          while(0 != threadsLeft_->load());
-          waitTask_->decrement_ref_count();
-          return nullptr;
-        }
-      private:
-        std::atomic<unsigned int>* threadsLeft_;
-        tbb::task* waitTask_;
-      };
-    }
-
     static char pstackName[] = "(CMSSW stack trace helper)";
     static char dashC[] = "-c";
     char InitRootHandlers::pidString_[InitRootHandlers::pidStringLength_] = {};
@@ -819,30 +793,9 @@ namespace edm {
         sigTermHandler_ = std::shared_ptr<const void>(nullptr,[](void*) {
           installCustomHandler(SIGTERM,sig_abort);
         });
-        iReg.watchPostForkReacquireResources(this, &InitRootHandlers::cachePidInfoHandler);
       }
 
-      //Initialize each TBB thread so ROOT knows about them
-      iReg.watchPreallocate( [](service::SystemBounds const& iBounds) {
-        auto const nThreads =iBounds.maxNumberOfThreads();
-        if(nThreads > 1) {
-          std::atomic<unsigned int> threadsLeft{nThreads};
-          
-          std::shared_ptr<tbb::empty_task> waitTask{new (tbb::task::allocate_root()) tbb::empty_task{},
-            [](tbb::empty_task* iTask){tbb::task::destroy(*iTask);} };
-          
-          waitTask->set_ref_count(1+nThreads);
-          for(unsigned int i=0; i<nThreads;++i) {
-            tbb::task::spawn( *( new(tbb::task::allocate_root()) InitializeThreadTask(&threadsLeft, waitTask.get())));
-          }
-          
-          waitTask->wait_for_all();
-          
-        }
-      }
-                            );
-
-      iReg.watchPreallocate([this](edm::service::SystemBounds const& iBounds){
+      iReg.watchPreallocate([](edm::service::SystemBounds const& iBounds){
         if (iBounds.maxNumberOfThreads() > moduleListBuffers_.size()) {
           moduleListBuffers_.resize(iBounds.maxNumberOfThreads());
         }
@@ -879,7 +832,9 @@ namespace edm {
 
       // Enable Root implicit multi-threading
       bool imt = pset.getUntrackedParameter<bool>("EnableIMT");
-      if (imt) ROOT::EnableImplicitMT();
+      if (imt && not ROOT::IsImplicitMTEnabled()) {
+        ROOT::EnableImplicitMT();
+      }
     }
 
     InitRootHandlers::~InitRootHandlers () {
@@ -899,7 +854,8 @@ namespace edm {
     
     void InitRootHandlers::willBeUsingThreads() {
       //Tell Root we want to be multi-threaded
-      TThread::Initialize();
+      ROOT::EnableThreadSafety();
+
       //When threading, also have to keep ROOT from logging all TObjects into a list
       TObject::SetObjectStat(false);
       
@@ -907,10 +863,6 @@ namespace edm {
       TVirtualStreamerInfo::Optimize(false);
     }
     
-    void InitRootHandlers::initializeThisThreadForUse() {
-      localInitializeThisThreadForUse();
-    }
-
     void InitRootHandlers::fillDescriptions(ConfigurationDescriptions& descriptions) {
       ParameterSetDescription desc;
       desc.setComment("Centralized interface to ROOT.");
@@ -922,7 +874,7 @@ namespace edm {
           ->setComment("If True, enables automatic loading of data dictionaries.");
       desc.addUntracked<bool>("LoadAllDictionaries",false)
           ->setComment("If True, loads all ROOT dictionaries.");
-      desc.addUntracked<bool>("EnableIMT",false)
+      desc.addUntracked<bool>("EnableIMT",true)
           ->setComment("If True, calls ROOT::EnableImplicitMT().");
       desc.addUntracked<bool>("AbortOnSignal",true)
           ->setComment("If True, do an abort when a signal occurs that causes a crash. If False, ROOT will do an exit which attempts to do a clean shutdown.");

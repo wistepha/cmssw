@@ -27,38 +27,39 @@ class HGCSD : public CaloSD, public Observer<const BeginOfJob *> {
 
 public:    
 
-  HGCSD(G4String , const DDCompactView &, const SensitiveDetectorCatalog &,
+  HGCSD(const std::string& , const DDCompactView &, const SensitiveDetectorCatalog &,
 	edm::ParameterSet const &, const SimTrackManager*);
-  virtual ~HGCSD();
-  virtual bool                  ProcessHits(G4Step * , G4TouchableHistory * );
-  virtual double                getEnergyDeposit(G4Step* );
-  virtual uint32_t              setDetUnitId(G4Step* step);
+  ~HGCSD() override;
+  bool                    ProcessHits(G4Step * , G4TouchableHistory * ) override;
+  double                  getEnergyDeposit(G4Step* ) override;
+  uint32_t                setDetUnitId(const G4Step* step) override;
 
 protected:
 
-  virtual void                  update(const BeginOfJob *);
-  virtual void                  initRun();
-  virtual bool                  filterHit(CaloG4Hit*, double);
+  void                    update(const BeginOfJob *) override;
+  void                    initRun() override;
+  bool                    filterHit(CaloG4Hit*, double) override;
 
 private:    
 
-  uint32_t                      setDetUnitId(ForwardSubdetector&, int, int, int, int, G4ThreeVector &);
-  bool                          isItinFidVolume (G4ThreeVector&) {return true;}
-  int                           setTrackID(G4Step * step);
+  uint32_t                        setDetUnitId(ForwardSubdetector&, int, int, 
+					       int, int, G4ThreeVector &);
+  bool                            isItinFidVolume (const G4ThreeVector&) {return true;}
+  int                             setTrackID(const G4Step * step);
 
-  std::string                   nameX;
+  std::string                     nameX;
 
-  HGCalGeometryMode             m_mode;
-  HGCNumberingScheme*           numberingScheme;
-  HGCMouseBite*                 mouseBite_;
-  G4int                         mumPDG, mupPDG; 
-  double                        eminHit;
-  ForwardSubdetector            myFwdSubdet_;
-  double                        slopeMin_;
-  int                           levelT_;
-  bool                          rejectMB_, waferRot_;
-  double                        mouseBiteCut_;
-  std::vector<double>           angles_;
+  HGCalGeometryMode::GeometryMode m_mode;
+  HGCNumberingScheme*             numberingScheme;
+  HGCMouseBite*                   mouseBite_;
+  G4int                           mumPDG, mupPDG; 
+  double                          eminHit;
+  ForwardSubdetector              myFwdSubdet_;
+  double                          slopeMin_;
+  int                             levelT_;
+  bool                            storeAllG4Hits_, rejectMB_, waferRot_;
+  double                          mouseBiteCut_;
+  std::vector<double>             angles_;
 };
 
 #endif // HGCSD_h

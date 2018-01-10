@@ -33,10 +33,11 @@ namespace edm {
                       ModuleCallingContext const* mcc) {
     Event e(ep, moduleDescription_, mcc);
     e.setConsumer(this);
+    e.setProducer(this, &previousParentage_);
     e.setSharedResourcesAcquirer(&resourceAcquirer_);
     EventSignalsSentry sentry(act,mcc);
     this->produce(e, c);
-    commit_(e, &previousParentage_, &previousParentageId_);
+    commit_(e, &previousParentageId_);
     return true;
   }
 
@@ -102,16 +103,6 @@ namespace edm {
     respondToCloseInputFile(fb);
   }
 
-  void 
-  EDProducer::doPreForkReleaseResources() {
-    preForkReleaseResources();
-  }
-  
-  void 
-  EDProducer::doPostForkReacquireResources(unsigned int iChildIndex, unsigned int iNumberOfChildren) {
-    postForkReacquireResources(iChildIndex, iNumberOfChildren);
-  }
-  
   void
   EDProducer::fillDescriptions(ConfigurationDescriptions& descriptions) {
     ParameterSetDescription desc;

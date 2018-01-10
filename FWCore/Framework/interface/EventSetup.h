@@ -19,16 +19,17 @@
 //
 
 // system include files
+#include <cassert>
 #include <map>
 #include <string>
+#include <type_traits>
 #include <vector>
-#include <cassert>
-#include "boost/type_traits/is_base_and_derived.hpp"
-#include "boost/static_assert.hpp"
+
 // user include files
-#include "FWCore/Framework/interface/IOVSyncValue.h"
+#include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/Framework/interface/EventSetupRecordKey.h"
 #include "FWCore/Framework/interface/HCMethods.h"
+#include "FWCore/Framework/interface/IOVSyncValue.h"
 #include "FWCore/Framework/interface/eventSetupGetImplementation.h"
 
 // forward declarations
@@ -42,11 +43,12 @@ namespace edm {
       template<class T> struct data_default_record_trait;
       class EventSetupKnownRecordsSupplier;
    }
-class EventSetup
-{
-   ///Only EventSetupProvider allowed to create a EventSetup
-   friend class eventsetup::EventSetupProvider;
-   public:
+
+  class EventSetup
+  {
+    ///Only EventSetupProvider allowed to create a EventSetup
+    friend class eventsetup::EventSetupProvider;
+    public:
       virtual ~EventSetup();
 
       // ---------- const member functions ---------------------
@@ -56,11 +58,11 @@ class EventSetup
          const T& get() const {
             //NOTE: this will catch the case where T does not inherit from EventSetupRecord
             //  HOWEVER the error message under gcc 3.x is awful
-            BOOST_STATIC_ASSERT((boost::is_base_and_derived<edm::eventsetup::EventSetupRecord, T>::value));
+            static_assert(std::is_base_of<edm::eventsetup::EventSetupRecord, T>::value, "Trying to get a class that is not a Record from EventSetup");
             const T* value = nullptr;
             eventSetupGetImplementation(*this, value);
             //NOTE: by construction, eventSetupGetImplementation should thrown an exception rather than return a null value
-            assert(0 != value);
+            assert(nullptr != value);
             return *value;
          }
       /** returns the Record of type T.  If no such record available
@@ -68,7 +70,7 @@ class EventSetup
       template< typename T>
       const T* tryToGet() const {
         //NOTE: this will catch the case where T does not inherit from EventSetupRecord
-        BOOST_STATIC_ASSERT((boost::is_base_and_derived<edm::eventsetup::EventSetupRecord, T>::value));
+        static_assert((std::is_base_of<edm::eventsetup::EventSetupRecord, T>::value),"Trying to get a class that is not a Record from EventSetup");
         const T* value = nullptr;
         eventSetupTryToGetImplementation(*this, value);
         return value;
@@ -98,8 +100,6 @@ class EventSetup
            rec.get(iTag,iHolder);
         }
    
-      const IOVSyncValue& iovSyncValue() const { return syncValue_;}
-
       const eventsetup::EventSetupRecord* find(const eventsetup::EventSetupRecordKey&) const;
       
       ///clears the oToFill vector and then fills it with the keys for all available records
@@ -116,9 +116,8 @@ class EventSetup
          getAvoidCompilerBug(const T*& iValue) const {
             iValue = &(get<T>());
          }
-   protected:
+    protected:
       //Only called by EventSetupProvider
-      void setIOVSyncValue(const IOVSyncValue&);
       void setKnownRecordsSupplier(eventsetup::EventSetupKnownRecordsSupplier const* iSupplier) {
         knownRecords_ = iSupplier;
       }
@@ -127,23 +126,44 @@ class EventSetup
       
       void clear();
       
-   private:
+    private:
       EventSetup();
       
-      EventSetup(EventSetup const&); // stop default
+      EventSetup(EventSetup const&) = delete; // stop default
 
-      EventSetup const& operator=(EventSetup const&); // stop default
+      EventSetup const& operator=(EventSetup const&) = delete; // stop default
 
       void insert(const eventsetup::EventSetupRecordKey&,
                   const eventsetup::EventSetupRecord*);
 
       // ---------- member data --------------------------------
-      IOVSyncValue syncValue_;
-      
+    
       //NOTE: the records are not owned
       std::map<eventsetup::EventSetupRecordKey, eventsetup::EventSetupRecord const *> recordMap_;
       eventsetup::EventSetupKnownRecordsSupplier const* knownRecords_;
-};
+  };
+
+  // Free functions to retrieve an object from the EventSetup.
+  // Will throw an exception if the record or  object are not found.
+
+  template <typename T, typename R = typename eventsetup::data_default_record_trait<typename T::value_type>::type>
+  T const& get(EventSetup const& setup) {
+    ESHandle<T> handle;
+    // throw if the record is not available
+    setup.get<R>().get(handle);
+    // throw if the handle is not valid
+    return * handle.product();
+  }
+
+  template <typename T, typename R = typename eventsetup::data_default_record_trait<typename T::value_type>::type, typename L>
+  T const& get(EventSetup const& setup, L && label) {
+    ESHandle<T> handle;
+    // throw if the record is not available
+    setup.get<R>().get(std::forward(label), handle);
+    // throw if the handle is not valid
+    return * handle.product();
+  }
 
 }
-#endif
+
+#endif // FWCore_Framework_EventSetup_h

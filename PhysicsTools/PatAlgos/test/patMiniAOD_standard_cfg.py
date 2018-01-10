@@ -5,6 +5,8 @@ from PhysicsTools.PatAlgos.patTemplate_cfg import cms, process, patAlgosToolsTas
 
 process.load("PhysicsTools.PatAlgos.producersLayer1.patCandidates_cff")
 patAlgosToolsTask.add(process.patCandidatesTask)
+#Temporary customize to the unit tests that fail due to old input samples
+process.patTaus.skipMissingTauID = True
 
 process.load("PhysicsTools.PatAlgos.selectionLayer1.selectedPatCandidates_cff")
 patAlgosToolsTask.add(process.selectedPatCandidatesTask)
@@ -29,11 +31,13 @@ miniAOD_customizeMC(process)
 #
 #   process.GlobalTag.globaltag =  ...    ##  (according to https://twiki.cern.ch/twiki/bin/view/CMS/SWGuideFrontierConditions)
 #                                         ##
-from PhysicsTools.PatAlgos.patInputFiles_cff import filesRelValTTbarPileUpGENSIMRECO
-process.source.fileNames = filesRelValTTbarPileUpGENSIMRECO
+from PhysicsTools.PatAlgos.patInputFiles_cff import filesRelValZeeGENSIMRECO
+process.source.fileNames = filesRelValZeeGENSIMRECO
+#from PhysicsTools.PatAlgos.patInputFiles_cff import filesRelValTTbarGENSIMRECO
+#process.source.fileNames = filesRelValTTbarGENSIMRECO
 
 #                                         ##
-process.maxEvents.input = 100
+process.maxEvents.input = 500
 #                                         ##
 process.out.outputCommands = process.MicroEventContentMC.outputCommands
 from PhysicsTools.PatAlgos.slimming.miniAOD_tools import miniAOD_customizeOutput

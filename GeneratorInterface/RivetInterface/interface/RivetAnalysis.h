@@ -69,7 +69,7 @@ namespace Rivet {
       }
 
       // Initialize Rivet projections
-      void init() {
+      void init() override {
         // Cuts
         Cut particle_cut = (Cuts::abseta < _particleMaxEta) and (Cuts::pT > _particleMinPt*GeV);
         Cut lepton_cut   = (Cuts::abseta < _lepMaxEta)      and (Cuts::pT > _lepMinPt*GeV);
@@ -140,7 +140,7 @@ namespace Rivet {
       };
 
       // Apply Rivet projections
-      void analyze(const Event& event) {
+      void analyze(const Event& event) override {
         _jets.clear();
         _fatjets.clear();
         _leptons.clear();
@@ -156,11 +156,11 @@ namespace Rivet {
         _fatjets   = applyProjection<FastJets>(event, "FatJets").jetsByPt(fatjet_cut);
         _photons   = applyProjection<FinalState>(event, "Photons").particlesByPt();
         _neutrinos = applyProjection<FinalState>(event, "Neutrinos").particlesByPt();
-        _met       = -applyProjection<MissingMomentum>(event, "MET").vectorEt();
+        _met       = applyProjection<MissingMomentum>(event, "MET").missingMomentum().p3();
       };
 
       // Do nothing here
-      void finalize() {};
+      void finalize() override {};
 
   };
 

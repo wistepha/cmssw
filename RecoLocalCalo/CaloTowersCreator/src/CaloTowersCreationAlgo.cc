@@ -67,9 +67,9 @@ CaloTowersCreationAlgo::CaloTowersCreationAlgo()
    theHOEScale(50.),
    theHF1EScale(50.),
    theHF2EScale(50.),
-   theHcalTopology(0),
-   theGeometry(0),
-   theTowerConstituentsMap(0),
+   theHcalTopology(nullptr),
+   theGeometry(nullptr),
+   theTowerConstituentsMap(nullptr),
    theHcalAcceptSeverityLevel(0),
    theRecoveredHcalHitsAreUsed(false),
    theRecoveredEcalHitsAreUsed(false),
@@ -84,8 +84,7 @@ CaloTowersCreationAlgo::CaloTowersCreationAlgo()
    theMomHEDepth(0.),
    theMomEBDepth(0.),
    theMomEEDepth(0.),
-   theHcalPhase(0),
-   subdetOne(-1)
+   theHcalPhase(0)
 {
 }
 
@@ -168,9 +167,9 @@ CaloTowersCreationAlgo::CaloTowersCreationAlgo(double EBthreshold, double EEthre
     theHOEScale(50.),
     theHF1EScale(50.),
     theHF2EScale(50.),
-    theHcalTopology(0),
-    theGeometry(0),
-    theTowerConstituentsMap(0),
+    theHcalTopology(nullptr),
+    theGeometry(nullptr),
+    theTowerConstituentsMap(nullptr),
     theHcalAcceptSeverityLevel(0),
     theRecoveredHcalHitsAreUsed(false),
     theRecoveredEcalHitsAreUsed(false),
@@ -185,8 +184,7 @@ CaloTowersCreationAlgo::CaloTowersCreationAlgo(double EBthreshold, double EEthre
     theMomHEDepth(momHEDepth),
     theMomEBDepth(momEBDepth),
     theMomEEDepth(momEEDepth),
-    theHcalPhase(hcalPhase),
-    subdetOne(-1)
+    theHcalPhase(hcalPhase)
 {
 }
 
@@ -276,9 +274,9 @@ CaloTowersCreationAlgo::CaloTowersCreationAlgo(double EBthreshold, double EEthre
     theHOEScale(50.),
     theHF1EScale(50.),
     theHF2EScale(50.),
-    theHcalTopology(0),
-    theGeometry(0),
-    theTowerConstituentsMap(0),
+    theHcalTopology(nullptr),
+    theGeometry(nullptr),
+    theTowerConstituentsMap(nullptr),
     theHcalAcceptSeverityLevel(0),
     theRecoveredHcalHitsAreUsed(false),
     theRecoveredEcalHitsAreUsed(false),
@@ -293,8 +291,7 @@ CaloTowersCreationAlgo::CaloTowersCreationAlgo(double EBthreshold, double EEthre
     theMomHEDepth(momHEDepth),
     theMomEBDepth(momEBDepth),
     theMomEEDepth(momEEDepth),
-    theHcalPhase(hcalPhase),
-    subdetOne(-1)
+    theHcalPhase(hcalPhase)
 {
   // static int N = 0;
   // std::cout << "VI Algo " << ++N << std::endl; 
@@ -311,64 +308,6 @@ void CaloTowersCreationAlgo::setGeometry(const CaloTowerTopology* cttopo, const 
   
   //initialize ecal bad channel map
   ecalBadChs.resize(theTowerTopology->sizeForDenseIndexing(),0);
-  
-  //store some specific geom info
-  
-  //which depths of tower 28/29 are merged?
-  //the merging starts at layer 5 in phase 0 or phase 1 configurations
-  mergedDepths.clear();  mergedDepthsOne.clear();
-  if(theHcalPhase==0 || theHcalPhase==1){
-    std::vector<int> tower28depths;
-    int ndepths, startdepth;
-    subdetOne = theHcalTopology->getPhiZOne(phizOne);
-    int zside = (subdetOne > 0) ? -phizOne[0].second : 1;
-    int iphi  = (subdetOne > 0) ? phizOne[0].first : 1;
-    theHcalTopology->getDepthSegmentation(theHcalTopology->lastHERing()-1,tower28depths,false);
-    theHcalTopology->depthBinInformation(HcalEndcap,theHcalTopology->lastHERing()-1,iphi,zside,ndepths,startdepth);
-    
-    //keep track of which depths are merged
-    //layer 5 = index 6 (layers start at -1)
-    std::vector<bool> isMergedDepth(ndepths,true);
-    for(int i = 0; i < std::min(6,(int)(tower28depths.size())); i++){
-      isMergedDepth[tower28depths[i]-startdepth] = false;
-    }
-    
-    //store true merged depths
-    for(int i = 0; i < ndepths; i++){
-      if(isMergedDepth[i]) mergedDepths.push_back(i+startdepth);
-    }
-
-    //Now for the one RBX
-    if (subdetOne > 0) {
-      zside = phizOne[0].second;
-      std::vector<int> tower28depthsOne;
-      theHcalTopology->getDepthSegmentation(theHcalTopology->lastHERing()-1,tower28depthsOne,true);
-      theHcalTopology->depthBinInformation(HcalEndcap,theHcalTopology->lastHERing()-1,iphi,zside,ndepths,startdepth);
-    
-      std::vector<bool> isMergedDepthOne(ndepths,true);
-      for(int i = 0; i < std::min(6,(int)(tower28depthsOne.size())); i++){
-	isMergedDepthOne[tower28depthsOne[i]-startdepth] = false;
-      }
-    
-      for(int i = 0; i < ndepths; i++){
-	if(isMergedDepthOne[i]) mergedDepthsOne.push_back(i+startdepth);
-      }
-    }
-  }
-#ifdef EDM_ML_DEBUG
-  std::cout << "mergedDepths with " << mergedDepths.size() << " entries:";
-  for (unsigned int k=0; k<mergedDepths.size(); ++k)
-    std::cout << " " << k << ":" << mergedDepths[k];
-  std::cout << std::endl << "Special subdetector " << subdetOne << " with "
-	    << phizOne.size() << " phis" << std::endl;
-  for (unsigned int k=0; k<phizOne.size(); ++k)
-    std::cout << "PhiZOne[" << k << "] " << phizOne[k].first << ":" 
-	      << phizOne[k].second << std::endl;
-  std::cout << "mergedDeptshOne with " << mergedDepthsOne.size() <<" entries:";
-  for (unsigned int k=0; k<mergedDepthsOne.size(); ++k)
-    std::cout << " " << k << ":" << mergedDepthsOne[k];
-  std::cout << std::endl;
-#endif
 }
 
 void CaloTowersCreationAlgo::begin() {
@@ -572,22 +511,9 @@ void CaloTowersCreationAlgo::assignHitHcal(const CaloRecHit * recHit) {
       (theHcalPhase==0 || theHcalPhase==1) &&
       //HcalDetId(detId).depth()==3 &&
       HcalDetId(detIdF).ietaAbs()==theHcalTopology->lastHERing()-1) {
-    if (subdetOne == HcalEndcap && (std::find(phizOne.begin(),phizOne.end(),std::pair<int,int>(HcalDetId(detIdF).iphi(),HcalDetId(detIdF).zside())) != phizOne.end())) {
-      merge = (std::find(mergedDepthsOne.begin(), mergedDepthsOne.end(), HcalDetId(detIdF).depth())!=mergedDepthsOne.end());
+    merge = theHcalTopology->mergedDepth29(HcalDetId(detIdF));
 #ifdef EDM_ML_DEBUG
-      std::cout << "Special cell ";
-#endif
-    } else {
-      merge = (std::find(mergedDepths.begin(), mergedDepths.end(), HcalDetId(detIdF).depth())!=mergedDepths.end());
-#ifdef EDM_ML_DEBUG
-      std::cout << "Normal cell ";
-#endif
-    }
-#ifdef EDM_ML_DEBUG
-    std::cout << "Merge " << HcalDetId(detIdF).subdet() << ":"
-	      << HcalDetId(detIdF).ieta() << ":" << HcalDetId(detIdF).iphi()
-	      << ":" << HcalDetId(detIdF).depth() << ":" << merge
-	      << std::endl;
+    std::cout << "Merge " << HcalDetId(detIdF) << ":" << merge << std::endl;
 #endif
   }
   if (merge) {
@@ -768,11 +694,22 @@ void CaloTowersCreationAlgo::assignHitHcal(const CaloRecHit * recHit) {
         // store energy in highest depth for towers 18-27 (for electron,photon ID in endcap)
         // also, store energy in HE part of tower 16 (for JetMET cleanup)
         HcalDetId hcalDetId(detId);
-        if (hcalDetId.subdet()==HcalEndcap && theHcalPhase==0) {
-          if ( (hcalDetId.depth()==2 && hcalDetId.ietaAbs()>=18 && hcalDetId.ietaAbs()<27) ||
-               (hcalDetId.depth()==3 && hcalDetId.ietaAbs()==27) ||
-               (hcalDetId.depth()==3 && hcalDetId.ietaAbs()==16) ) {
-            tower.E_outer += e;
+        if (hcalDetId.subdet()==HcalEndcap){
+          if(theHcalPhase==0) {
+            if ( (hcalDetId.depth()==2 && hcalDetId.ietaAbs()>=18 && hcalDetId.ietaAbs()<27) ||
+                 (hcalDetId.depth()==3 && hcalDetId.ietaAbs()==27) ||
+                 (hcalDetId.depth()==3 && hcalDetId.ietaAbs()==16) ) {
+              tower.E_outer += e;
+            }
+          }
+          //combine depths in phase0-like way
+          else if(theHcalPhase==1) {
+            if ( (hcalDetId.depth()>=3 && hcalDetId.ietaAbs()>=18 && hcalDetId.ietaAbs()<26) ||
+                 (hcalDetId.depth()>=4 && (hcalDetId.ietaAbs()==26 || hcalDetId.ietaAbs()==27)) ||
+                 (hcalDetId.depth()==3 && hcalDetId.ietaAbs()==17) ||
+                 (hcalDetId.depth()==4 && hcalDetId.ietaAbs()==16) ) {
+              tower.E_outer += e;
+            }
           }
         }
 
@@ -1399,7 +1336,7 @@ GlobalPoint CaloTowersCreationAlgo::emCrystalShwrPos(DetId detId, float fracDept
    if (fracDepth<=0) return point;
    if (fracDepth>1) fracDepth=1;
 
-     GlobalPoint backPoint = cellGeometry->getBackPoint();
+     const GlobalPoint& backPoint = cellGeometry->getBackPoint();
      point += fracDepth * (backPoint-point);
 
    return point;
@@ -1547,7 +1484,7 @@ GlobalPoint CaloTowersCreationAlgo::hadShwPosFromCells(DetId frontCellId, DetId 
     const CaloCellGeometry* backCellGeometry  = theGeometry->getGeometry(DetId(hid2));
 
     GlobalPoint point     = frontCellGeometry->getPosition();
-    GlobalPoint backPoint = backCellGeometry->getBackPoint();
+    const GlobalPoint& backPoint = backCellGeometry->getBackPoint();
 
     point += fracDepth * (backPoint - point);
 
@@ -1672,12 +1609,7 @@ void CaloTowersCreationAlgo::makeHcalDropChMap() {
       if (hid.subdet()==HcalEndcap &&
 	  (theHcalPhase==0 || theHcalPhase==1) &&
 	  hid.ietaAbs()==theHcalTopology->lastHERing()-1) {
-	bool merge(false);
-	if (subdetOne == HcalEndcap && (std::find(phizOne.begin(),phizOne.end(),std::pair<int,int>(hid.iphi(),hid.zside())) != phizOne.end())) {
-	  merge = (std::find(mergedDepthsOne.begin(), mergedDepthsOne.end(), hid.depth())!=mergedDepthsOne.end());
-	} else {
-	  merge = (std::find(mergedDepths.begin(), mergedDepths.end(), hid.depth())!=mergedDepths.end());
-	}
+	bool merge = theHcalTopology->mergedDepth29(hid);
 	if (merge) {
           CaloTowerDetId twrId29(twrId.ieta()+twrId.zside(), twrId.iphi());
           hcalDropChMap[twrId29] +=1;

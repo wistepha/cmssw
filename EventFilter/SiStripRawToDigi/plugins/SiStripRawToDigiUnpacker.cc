@@ -3,8 +3,8 @@
 #include "DataFormats/Common/interface/DetSet.h"
 #include "DataFormats/FEDRawData/interface/FEDRawDataCollection.h"
 #include "DataFormats/FEDRawData/interface/FEDNumbering.h"
-#include "DataFormats/FEDRawData/src/fed_header.h"
-#include "DataFormats/FEDRawData/src/fed_trailer.h"
+#include "DataFormats/FEDRawData/interface/FEDHeader.h"
+#include "DataFormats/FEDRawData/interface/FEDTrailer.h"
 #include "DataFormats/SiStripCommon/interface/SiStripConstants.h"
 #include "DataFormats/SiStripCommon/interface/SiStripEventSummary.h"
 #include "DataFormats/SiStripDigi/interface/SiStripDigi.h"
@@ -863,7 +863,7 @@ namespace sistrip {
   void RawToDigiUnpacker::triggerFed( const FEDRawDataCollection& buffers, SiStripEventSummary& summary, const uint32_t& event ) {
   
     // Pointer to data (recast as 32-bit words) and number of 32-bit words
-    uint32_t* data_u32 = 0;
+    uint32_t* data_u32 = nullptr;
     uint32_t  size_u32 = 0;
   
     // Search mode
@@ -875,10 +875,10 @@ namespace sistrip {
 	const FEDRawData& trigger_fed = buffers.FEDData( ifed );
 	if ( trigger_fed.data() && trigger_fed.size() ) {
 	  uint8_t*  temp = const_cast<uint8_t*>( trigger_fed.data() );
-	  data_u32 = reinterpret_cast<uint32_t*>( temp ) + sizeof(fedh_t)/sizeof(uint32_t) + 1;
-	  size_u32 = trigger_fed.size()/sizeof(uint32_t) - sizeof(fedh_t)/sizeof(uint32_t) - 1;
-	  fedt_t* fed_trailer = reinterpret_cast<fedt_t*>( temp + trigger_fed.size() - sizeof(fedt_t) );
-	  if ( fed_trailer->conscheck == 0xDEADFACE ) { 
+	  data_u32 = reinterpret_cast<uint32_t*>( temp ) + FEDHeader::length/sizeof(uint32_t) + 1;
+	  size_u32 = trigger_fed.size()/sizeof(uint32_t) - FEDHeader::length/sizeof(uint32_t) - 1;
+	  const FEDTrailer fedTrailer( temp + trigger_fed.size() - FEDTrailer::length );
+	  if ( fedTrailer.conscheck() == 0xDEADFACE ) {
 	    triggerFedId_ = ifed; 
 	    if ( edm::isDebugEnabled() ) {
 	      std::stringstream ss;
@@ -909,10 +909,10 @@ namespace sistrip {
       const FEDRawData& trigger_fed = buffers.FEDData( triggerFedId_ );
       if ( trigger_fed.data() && trigger_fed.size() ) {
 	uint8_t*  temp = const_cast<uint8_t*>( trigger_fed.data() );
-	data_u32 = reinterpret_cast<uint32_t*>( temp ) + sizeof(fedh_t)/sizeof(uint32_t) + 1;
-	size_u32 = trigger_fed.size()/sizeof(uint32_t) - sizeof(fedh_t)/sizeof(uint32_t) - 1;
-	fedt_t* fed_trailer = reinterpret_cast<fedt_t*>( temp + trigger_fed.size() - sizeof(fedt_t) );
-	if ( fed_trailer->conscheck != 0xDEADFACE ) { 
+	data_u32 = reinterpret_cast<uint32_t*>( temp ) + FEDHeader::length/sizeof(uint32_t) + 1;
+	size_u32 = trigger_fed.size()/sizeof(uint32_t) - FEDHeader::length/sizeof(uint32_t) - 1;
+	const FEDTrailer fedTrailer( temp + trigger_fed.size() - FEDTrailer::length );
+	if ( fedTrailer.conscheck() != 0xDEADFACE ) {
 	  if ( edm::isDebugEnabled() ) {
 	    edm::LogWarning(sistrip::mlRawToDigi_) 
 	      << "[sistrip::RawToDigiUnpacker::" << __func__ << "]"
@@ -925,7 +925,7 @@ namespace sistrip {
       
     } else { 
       triggerFedId_ = 0; 
-      data_u32 = 0;
+      data_u32 = nullptr;
       size_u32 = 0;
     }
   
@@ -1129,7 +1129,7 @@ namespace sistrip {
     uint32_t daq2 = sistrip::invalid32_;
 
     if (fed.headerType() == sistrip::HEADER_TYPE_FULL_DEBUG) {
-      const sistrip::FEDFullDebugHeader* header = 0;
+      const sistrip::FEDFullDebugHeader* header = nullptr;
       header = dynamic_cast<const sistrip::FEDFullDebugHeader*>(fed.feHeader());
       daq1 = static_cast<uint32_t>( header->daqRegister() ); 
       daq2 = static_cast<uint32_t>( header->daqRegister2() ); 
@@ -1163,7 +1163,7 @@ namespace sistrip {
        << " Buffer contains " << buffer.size()
        << " bytes (NB: payload is byte-swapped)" << std::endl;
 
-    if ( 0 ) { 
+    if ( false ) { 
       uint32_t* buffer_u32 = reinterpret_cast<uint32_t*>( const_cast<unsigned char*>( buffer.data() ) );
       unsigned int empty = 0;
 

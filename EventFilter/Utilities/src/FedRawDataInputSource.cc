@@ -10,7 +10,7 @@
 #include <vector>
 #include <fstream>
 #include <zlib.h>
-#include <stdio.h>
+#include <cstdio>
 #include <chrono>
 
 #include <boost/algorithm/string.hpp>
@@ -18,7 +18,11 @@
 
 
 #include "DataFormats/FEDRawData/interface/FEDNumbering.h"
+#include "DataFormats/FEDRawData/interface/FEDHeader.h"
+#include "DataFormats/FEDRawData/interface/FEDTrailer.h"
 #include "DataFormats/FEDRawData/interface/FEDRawDataCollection.h"
+
+#include "DataFormats/TCDS/interface/TCDSRaw.h"
 
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/InputSourceDescription.h"
@@ -27,9 +31,7 @@
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/Utilities/interface/UnixSignalHandlers.h"
 
-#include "EventFilter/FEDInterface/interface/GlobalEventNumber.h"
-#include "EventFilter/FEDInterface/interface/fed_header.h"
-#include "EventFilter/FEDInterface/interface/fed_trailer.h"
+#include "EventFilter/Utilities/interface/GlobalEventNumber.h"
 
 #include "EventFilter/Utilities/interface/FedRawDataInputSource.h"
 
@@ -72,7 +74,7 @@ FedRawDataInputSource::FedRawDataInputSource(edm::ParameterSet const& pset,
   eventID_(),
   processHistoryID_(),
   currentLumiSection_(0),
-  tcds_pointer_(0),
+  tcds_pointer_(nullptr),
   eventsThisLumi_(0),
   dpd_(nullptr)
 {
@@ -246,7 +248,7 @@ bool FedRawDataInputSource::checkNextEvent()
     startupCv_.wait(lk);
   }
   //signal hltd to start event accounting
-  if (!currentLumiSection_ && daqDirector_->emptyLumisectionMode())
+  if (!currentLumiSection_)
     daqDirector_->createProcessingNotificationMaybe();
   if (fms_) fms_->setInState(evf::FastMonitoringThread::inWaitInput);
   switch (nextEvent() ) {
@@ -297,7 +299,7 @@ bool FedRawDataInputSource::checkNextEvent()
       }
       if (fileListMode_ || fileListLoopMode_)
         eventRunNumber_=runNumber_;
-      else 
+      else
         eventRunNumber_=event_->run();
       L1EventID_ = event_->event();
 
@@ -344,7 +346,7 @@ void FedRawDataInputSource::maybeOpenNewLumiSection(const uint32_t lumiSection)
     resetLuminosityBlockAuxiliary();
 
     timeval tv;
-    gettimeofday(&tv, 0);
+    gettimeofday(&tv, nullptr);
     const edm::Timestamp lsopentime( (unsigned long long) tv.tv_sec * 1000000 + (unsigned long long) tv.tv_usec );
 
     edm::LuminosityBlockAuxiliary* lumiBlockAuxiliary =
@@ -419,7 +421,7 @@ inline evf::EvFDaqDirector::FileStatus FedRawDataInputSource::getNextEvent()
       currentFileIndex_++;
     }
     else
-      assert(0);
+      assert(false);
   }
   if (fms_) fms_->setInState(evf::FastMonitoringThread::inProcessingFile);
 
@@ -449,9 +451,9 @@ inline evf::EvFDaqDirector::FileStatus FedRawDataInputSource::getNextEvent()
     if (currentFile_->nEvents_>=0 && currentFile_->nEvents_!=int(currentFile_->nProcessed_))
     {
       throw cms::Exception("FedRawDataInputSource::getNextEvent")
-	<< "Fully processed " << currentFile_->nProcessed_ 
-        << " from the file " << currentFile_->fileName_ 
-	<< " but according to BU JSON there should be " 
+	<< "Fully processed " << currentFile_->nProcessed_
+        << " from the file " << currentFile_->fileName_
+	<< " but according to BU JSON there should be "
 	<< currentFile_->nEvents_ << " events";
     }
     //try to wake up supervisor thread which might be sleeping waiting for the free chunk
@@ -501,7 +503,7 @@ inline evf::EvFDaqDirector::FileStatus FedRawDataInputSource::getNextEvent()
 
       if (detectedFRDversion_==0) {
         detectedFRDversion_=*((uint32*)dataPosition);
-        if (detectedFRDversion_>5) 
+        if (detectedFRDversion_>5)
           throw cms::Exception("FedRawDataInputSource::getNextEvent")
               << "Unknown FRD version -: " << detectedFRDversion_;
         assert(detectedFRDversion_>=1);
@@ -679,7 +681,7 @@ void FedRawDataInputSource::read(edm::EventPrincipal& eventPrincipal)
     aux.setProcessHistoryID(processHistoryID_);
     makeEvent(eventPrincipal, aux);
   }
-  else if(tcds_pointer_==0){
+  else if(tcds_pointer_==nullptr){
     assert(GTPEventID_);
     eventID_ = edm::EventID(eventRunNumber_, currentLumiSection_, GTPEventID_);
     edm::EventAuxiliary aux(eventID_, processGUID(), tstamp, true,
@@ -688,10 +690,12 @@ void FedRawDataInputSource::read(edm::EventPrincipal& eventPrincipal)
     makeEvent(eventPrincipal, aux);
   }
   else{
-    evf::evtn::TCDSRecord record((unsigned char *)(tcds_pointer_));
-    edm::EventAuxiliary aux = evf::evtn::makeEventAuxiliary(&record,
+    const FEDHeader fedHeader(tcds_pointer_);
+    tcds::Raw_v1 const* tcds = reinterpret_cast<tcds::Raw_v1 const*>(tcds_pointer_ + FEDHeader::length);
+    edm::EventAuxiliary aux = evf::evtn::makeEventAuxiliary(tcds,
 						 eventRunNumber_,currentLumiSection_,
-                                                 processGUID(),!fileListLoopMode_);
+						 static_cast<edm::EventAuxiliary::ExperimentType>(fedHeader.triggerType()),
+						 processGUID(),!fileListLoopMode_);
     aux.setProcessHistoryID(processHistoryID_);
     makeEvent(eventPrincipal, aux);
   }
@@ -744,45 +748,45 @@ edm::Timestamp FedRawDataInputSource::fillFEDRawDataCollection(FEDRawDataCollect
 {
   edm::TimeValue_t time;
   timeval stv;
-  gettimeofday(&stv,0);
+  gettimeofday(&stv,nullptr);
   time = stv.tv_sec;
   time = (time << 32) + stv.tv_usec;
   edm::Timestamp tstamp(time);
 
   uint32_t eventSize = event_->eventSize();
-  char* event = (char*)event_->payload();
+  unsigned char* event = (unsigned char*)event_->payload();
   GTPEventID_=0;
-  tcds_pointer_ = 0;
+  tcds_pointer_ = nullptr;
   while (eventSize > 0) {
-    assert(eventSize>=sizeof(fedt_t));
-    eventSize -= sizeof(fedt_t);
-    const fedt_t* fedTrailer = (fedt_t*) (event + eventSize);
-    const uint32_t fedSize = FED_EVSZ_EXTRACT(fedTrailer->eventsize) << 3; //trailer length counts in 8 bytes
-    assert(eventSize>=fedSize - sizeof(fedt_t));
-    eventSize -= (fedSize - sizeof(fedt_t));
-    const fedh_t* fedHeader = (fedh_t *) (event + eventSize);
-    const uint16_t fedId = FED_SOID_EXTRACT(fedHeader->sourceid);
+    assert(eventSize>=FEDTrailer::length);
+    eventSize -= FEDTrailer::length;
+    const FEDTrailer fedTrailer(event + eventSize);
+    const uint32_t fedSize = fedTrailer.fragmentLength() << 3; //trailer length counts in 8 bytes
+    assert(eventSize>=fedSize - FEDHeader::length);
+    eventSize -= (fedSize - FEDHeader::length);
+    const FEDHeader fedHeader(event + eventSize);
+    const uint16_t fedId = fedHeader.sourceID();
     if(fedId>FEDNumbering::MAXFEDID)
     {
       throw cms::Exception("FedRawDataInputSource::fillFEDRawDataCollection") << "Out of range FED ID : " << fedId;
     }
     if (fedId == FEDNumbering::MINTCDSuTCAFEDID) {
-      tcds_pointer_ = (unsigned char *)(event + eventSize );
+      tcds_pointer_ = event + eventSize;
     }
     if (fedId == FEDNumbering::MINTriggerGTPFEDID) {
-      if (evf::evtn::evm_board_sense((unsigned char*) fedHeader,fedSize))
-          GTPEventID_ = evf::evtn::get((unsigned char*) fedHeader,true);
+      if (evf::evtn::evm_board_sense(event + eventSize,fedSize))
+          GTPEventID_ = evf::evtn::get(event + eventSize,true);
       else
-          GTPEventID_ = evf::evtn::get((unsigned char*) fedHeader,false);
+          GTPEventID_ = evf::evtn::get(event + eventSize,false);
       //evf::evtn::evm_board_setformat(fedSize);
-      const uint64_t gpsl = evf::evtn::getgpslow((unsigned char*) fedHeader);
-      const uint64_t gpsh = evf::evtn::getgpshigh((unsigned char*) fedHeader);
+      const uint64_t gpsl = evf::evtn::getgpslow(event + eventSize);
+      const uint64_t gpsh = evf::evtn::getgpshigh(event + eventSize);
       tstamp = edm::Timestamp(static_cast<edm::TimeValue_t> ((gpsh << 32) + gpsl));
     }
     //take event ID from GTPE FED
     if (fedId == FEDNumbering::MINTriggerEGTPFEDID && GTPEventID_==0) {
-      if (evf::evtn::gtpe_board_sense((unsigned char*)fedHeader)) {
-        GTPEventID_ = evf::evtn::gtpe_get((unsigned char*) fedHeader);
+      if (evf::evtn::gtpe_board_sense(event + eventSize)) {
+        GTPEventID_ = evf::evtn::gtpe_get(event + eventSize);
       }
     }
     FEDRawData& fedData = rawData.FEDData(fedId);
@@ -863,7 +867,7 @@ int FedRawDataInputSource::grabNextJsonFile(boost::filesystem::path const& jsonS
 	}
     }
     if (!success) {
-      if (dp.getData().size())
+      if (!dp.getData().empty())
 	data = dp.getData()[0];
       else
 	throw cms::Exception("FedRawDataInputSource::grabNextJsonFile") <<
@@ -898,17 +902,6 @@ int FedRawDataInputSource::grabNextJsonFile(boost::filesystem::path const& jsonS
   }
 
   return -1;
-}
-
-void FedRawDataInputSource::preForkReleaseResources()
-{}
-
-void FedRawDataInputSource::postForkReacquireResources(std::shared_ptr<edm::multicore::MessageReceiverForSource>)
-{
-  InputSource::rewind();
-  setRunAuxiliary(
-                  new edm::RunAuxiliary(runNumber_, edm::Timestamp::beginOfTime(),
-					edm::Timestamp::invalidTimestamp()));
 }
 
 void FedRawDataInputSource::rewind_()
@@ -987,7 +980,7 @@ void FedRawDataInputSource::readSupervisor()
 	stop=true;
 	break;
       }
-     
+
       uint64_t thisLockWaitTimeUs=0.;
       if (fileListMode_) {
         //return LS if LS not set, otherwise return file
@@ -995,7 +988,7 @@ void FedRawDataInputSource::readSupervisor()
       }
       else
         status = daqDirector_->updateFuLock(ls,nextFile,fileSize,thisLockWaitTimeUs);
-        
+
       if (fms_) fms_->setInStateSup(evf::FastMonitoringThread::inSupBusy);
 
       if (currentLumiSection!=ls && status==evf::EvFDaqDirector::runEnded) status=evf::EvFDaqDirector::noFile;
@@ -1027,6 +1020,12 @@ void FedRawDataInputSource::readSupervisor()
 	break;
       }
 
+      //error from filelocking function
+      if (status == evf::EvFDaqDirector::runAbort) {
+	fileQueue_.push(new InputFile(evf::EvFDaqDirector::runAbort, 0));
+        stop=true;
+        break;
+      }
       //queue new lumisection
       if( getLSFromFilename_ && ls > currentLumiSection) {
         //fms_->setInStateSup(evf::FastMonitoringThread::inSupNewLumi);
@@ -1195,7 +1194,7 @@ void FedRawDataInputSource::readWorker(unsigned int tid)
   bool init = true;
   threadInit_.exchange(true,std::memory_order_acquire);
 
-  while (1) {
+  while (true) {
 
     tid_active_[tid]=false;
     std::unique_lock<std::mutex> lk(mReader_);
@@ -1386,7 +1385,7 @@ void FedRawDataInputSource::reportEventsThisLumiInSource(unsigned int lumi,unsig
   auto itr = sourceEventsReport_.find(lumi);
   if (itr!=sourceEventsReport_.end())
     itr->second+=events;
-  else 
+  else
     sourceEventsReport_[lumi]=events;
 }
 
@@ -1396,11 +1395,11 @@ std::pair<bool,unsigned int> FedRawDataInputSource::getEventReport(unsigned int 
   auto itr = sourceEventsReport_.find(lumi);
   if (itr!=sourceEventsReport_.end()) {
     auto && ret = std::pair<bool,unsigned int>(true,itr->second);
-    if (erase) 
+    if (erase)
       sourceEventsReport_.erase(itr);
     return ret;
   }
-  else 
+  else
     return std::pair<bool,unsigned int>(false,0);
 }
 
@@ -1412,7 +1411,7 @@ long FedRawDataInputSource::initFileList()
               if (b.rfind("/")!=std::string::npos) b=b.substr(b.rfind("/"));
               return b > a;});
 
-  if (fileNames_.size()) {
+  if (!fileNames_.empty()) {
     //get run number from first file in the vector
     boost::filesystem::path fileName = fileNames_[0];
     std::string fileStem = fileName.stem().string();

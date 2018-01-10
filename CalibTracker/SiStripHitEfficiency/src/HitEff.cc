@@ -29,7 +29,7 @@
 #include "Geometry/TrackerGeometryBuilder/interface/TrackerGeometry.h"
 #include "Geometry/Records/interface/TrackerDigiGeometryRecord.h"
 #include "Geometry/CommonDetUnit/interface/GeomDetType.h"
-#include "Geometry/CommonDetUnit/interface/GeomDetUnit.h"
+#include "Geometry/CommonDetUnit/interface/GeomDet.h"
 #include "DataFormats/TrackReco/interface/Track.h"
 #include "DataFormats/TrackReco/interface/TrackFwd.h"
 #include "DataFormats/TrackReco/interface/TrackExtra.h"
@@ -53,7 +53,6 @@
 #include "CalibFormats/SiStripObjects/interface/SiStripDetCabling.h"
 #include "CalibTracker/Records/interface/SiStripQualityRcd.h"
 #include "CalibFormats/SiStripObjects/interface/SiStripQuality.h"
-#include "DataFormats/SiStripDetId/interface/SiStripSubStructure.h"
 #include "Geometry/CommonDetUnit/interface/GluedGeomDet.h"
 #include "DataFormats/Common/interface/DetSetVector.h"
 #include "DataFormats/Common/interface/DetSetVectorNew.h"
@@ -85,6 +84,8 @@ HitEff::HitEff(const edm::ParameterSet& conf) :
   DEBUG = conf_.getParameter<bool>("Debug");
   addLumi_ = conf_.getUntrackedParameter<bool>("addLumi", false);
   addCommonMode_ = conf_.getUntrackedParameter<bool>("addCommonMode", false);
+  cutOnTracks_ = conf_.getUntrackedParameter<bool>("cutOnTracks", false);
+  trackMultiplicityCut_ = conf.getUntrackedParameter<unsigned int>("trackMultiplicity",100);
 }
 
 // Virtual destructor needed.
@@ -272,8 +273,9 @@ void HitEff::analyze(const edm::Event& e, const edm::EventSetup& es){
   const   reco::TrackCollection *tracksCKF=trackCollectionCKF.product();
   if (DEBUG)  cout << "number ckf tracks found = " << tracksCKF->size() << endl;
   //if (tracksCKF->size() == 1 ){
-  if (tracksCKF->size() > 0 && tracksCKF->size()<100) {
-    if (DEBUG)    cout << "starting checking good event with < 100 tracks" << endl;
+  if (!tracksCKF->empty()) {
+    if( cutOnTracks_ && (tracksCKF->size() >= trackMultiplicityCut_) ) return;
+    if( DEBUG && cutOnTracks_ ) cout << "starting checking good event with < "<< trackMultiplicityCut_ <<" tracks" << endl;
 
     EventTrackCKF++;  
 
@@ -297,7 +299,7 @@ void HitEff::analyze(const edm::Event& e, const edm::EventSetup& es){
     Handle<MuonCollection> muH;
     if(e.getByLabel("muonsWitht0Correction",muH)){
       const MuonCollection & muonsT0  =  *muH.product();
-      if(muonsT0.size()!=0) {
+      if(!muonsT0.empty()) {
 	MuonTime mt0 = muonsT0[0].time();
 	timeDT = mt0.timeAtIpInOut; 
 	timeDTErr = mt0.timeAtIpInOutErr;
@@ -412,7 +414,7 @@ void HitEff::analyze(const edm::Event& e, const edm::EventSetup& es){
 	    // if no detId is available, ie detId==0, then no compatible layer was crossed
 	    // otherwise, use that TM for the efficiency measurement
 	    TrajectoryMeasurement tob6TM(tmp.back());
-	    auto tob6Hit = tob6TM.recHit();
+	    const auto& tob6Hit = tob6TM.recHit();
 	    
 	    if (tob6Hit->geographicalId().rawId()!=0) {
 	      if (DEBUG) cout << "tob6 hit actually being added to TM vector" << endl;
@@ -458,7 +460,7 @@ void HitEff::analyze(const edm::Event& e, const edm::EventSetup& es){
 	    // if no detId is available, ie detId==0, then no compatible layer was crossed
 	    // otherwise, use that TM for the efficiency measurement
 	    TrajectoryMeasurement tec9TM(tmp.back());
-	    auto tec9Hit = tec9TM.recHit();
+	    const auto& tec9Hit = tec9TM.recHit();
 	    
 	    unsigned int tec9id = tec9Hit->geographicalId().rawId();
 	    if (DEBUG) cout << "tec9id = " << tec9id << " is Double sided = " <<  isDoubleSided(tec9id, tTopo) << "  and 0x3 = " << (tec9id & 0x3) << endl;
@@ -517,7 +519,7 @@ void HitEff::analyze(const edm::Event& e, const edm::EventSetup& es){
 	    
 	    // RPhi RecHit Efficiency 
 	    
-	    if (input.size() > 0 ) {  
+	    if (!input.empty() ) {  
 	      if (DEBUG) cout << "Checking clusters with size = " << input.size() << endl;
 	      int nClusters = 0;
 	      std::vector< std::vector<float> > VCluster_info; //fill with X residual, X residual pull, local X, sig(X), local Y, sig(Y), StoN
@@ -537,7 +539,7 @@ void HitEff::analyze(const edm::Event& e, const edm::EventSetup& es){
                   float uylfac   = 0.0;
                   float uxlden   = 0.0;
                   if(TKlayers>=11) {
-                     const BoundPlane plane = stripdet->surface();
+                     const BoundPlane& plane = stripdet->surface();
                      const TrapezoidalPlaneBounds* trapezoidalBounds( dynamic_cast<const TrapezoidalPlaneBounds*>(&(plane.bounds())));
 		     std::array<const float, 4> const & parameterTrap = (*trapezoidalBounds).parameters(); // el bueno aqui
                      hbedge         = parameterTrap[0];

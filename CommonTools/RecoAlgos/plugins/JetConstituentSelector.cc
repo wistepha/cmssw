@@ -17,6 +17,7 @@
 #include "CommonTools/UtilAlgos/interface/StringCutObjectSelector.h"
 #include "DataFormats/JetReco/interface/Jet.h"
 #include "DataFormats/JetReco/interface/PFJet.h"
+#include "DataFormats/JetReco/interface/GenJet.h"
 #include "DataFormats/PatCandidates/interface/Jet.h"
 #include "DataFormats/PatCandidates/interface/PackedCandidate.h"
 #include "DataFormats/JetReco/interface/CaloJet.h"
@@ -47,7 +48,12 @@ public:
     desc.add<edm::InputTag>("src")->setComment("InputTag used for retrieving jets in event.");
     desc.add<std::string>("cut")->setComment("Cut used by which to select jets.  For example:\n"
                                              "  \"pt > 100.0 && abs(rapidity()) < 2.4\".");
-    descriptions.add("JetConsituentSelector", desc);
+
+    // addDefault must be used here instead of add unless this function is specialized
+    // for different sets of template parameter types. Each specialization would need
+    // a different module label. Otherwise the generated cfi filenames will conflict
+    // for the different plugins.
+    descriptions.addDefault(desc);
   }
 
   void produce(edm::Event& iEvent, edm::EventSetup const& iSetup) override
@@ -80,9 +86,11 @@ private:
 };
 
 using PFJetConstituentSelector = JetConstituentSelector<reco::PFJet>;
+using GenJetConstituentSelector = JetConstituentSelector<reco::GenJet, std::vector<edm::FwdPtr<reco::GenParticle>>>;
 using PatJetConstituentSelector = JetConstituentSelector<pat::Jet, std::vector<edm::FwdPtr<pat::PackedCandidate>>>;
 using MiniAODJetConstituentSelector = JetConstituentSelector<reco::PFJet, std::vector<edm::FwdPtr<pat::PackedCandidate>>>;
 
 DEFINE_FWK_MODULE(PFJetConstituentSelector);
+DEFINE_FWK_MODULE(GenJetConstituentSelector);
 DEFINE_FWK_MODULE(PatJetConstituentSelector);
 DEFINE_FWK_MODULE(MiniAODJetConstituentSelector);

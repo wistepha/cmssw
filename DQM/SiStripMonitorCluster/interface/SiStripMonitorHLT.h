@@ -19,15 +19,16 @@
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "DQMServices/Core/interface/MonitorElement.h"
 #include <DQMServices/Core/interface/DQMEDAnalyzer.h>
+#include "DataFormats/SiStripCluster/interface/SiStripCluster.h"
 
 class DQMStore;
 
 class SiStripMonitorHLT : public DQMEDAnalyzer {
    public:
       explicit SiStripMonitorHLT(const edm::ParameterSet&);
-      ~SiStripMonitorHLT(){};
+      ~SiStripMonitorHLT() override{};
 
-      virtual void analyze(const edm::Event&, const edm::EventSetup&) override;
+      void analyze(const edm::Event&, const edm::EventSetup&) override;
        void bookHistograms(DQMStore::IBooker &, edm::Run const &, edm::EventSetup const &) override;
 
    private:

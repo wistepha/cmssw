@@ -12,6 +12,8 @@
 #include "DQMServices/Components/plugins/MEtoEDMConverter.h"
 #include "classlib/utils/StringList.h"
 #include "classlib/utils/StringOps.h"
+#include "DataFormats/Histograms/interface/DQMToken.h"
+#include "DataFormats/Histograms/interface/MEtoEDMFormat.h"
 
 using namespace lat;
 
@@ -78,15 +80,13 @@ MEtoEDMConverter::MEtoEDMConverter(const edm::ParameterSet & iPSet) :
   produces<MEtoEDM<long long>, edm::Transition::EndLuminosityBlock>(sName);
   produces<MEtoEDM<TString>, edm::Transition::EndLuminosityBlock>(sName);
 
-  iCount.clear();
+  consumesMany<DQMToken>();
 
-  assert(sizeof(int64_t) == sizeof(long long));
+  static_assert(sizeof(int64_t) == sizeof(long long),"type int64_t is not the same length as long long");
 
 }
 
-MEtoEDMConverter::~MEtoEDMConverter()
-{
-}
+MEtoEDMConverter::~MEtoEDMConverter() = default;
 
 void
 MEtoEDMConverter::beginJob()
@@ -96,7 +96,7 @@ MEtoEDMConverter::beginJob()
 }
 
 void
-MEtoEDMConverter::endJob(void)
+MEtoEDMConverter::endJob()
 {
   std::string MsgLoggerCat = "MEtoEDMConverter_endJob";
 

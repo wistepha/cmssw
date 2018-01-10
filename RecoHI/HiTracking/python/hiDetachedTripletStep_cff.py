@@ -21,6 +21,11 @@ hiDetachedTripletStepClusters = cms.EDProducer("HITrackClusterRemover",
 )
 
 
+from Configuration.Eras.Modifier_trackingPhase1_cff import trackingPhase1
+trackingPhase1.toModify(hiDetachedTripletStepClusters,
+     trajectories = cms.InputTag("hiDetachedQuadStepTracks"),
+     overrideTrkQuals = cms.InputTag("hiDetachedQuadStepSelector","hiDetachedQuadStep"),
+)
 
 
 # SEEDING LAYERS
@@ -48,7 +53,7 @@ hiDetachedTripletStepTrackingRegions = _globalTrackingRegionWithVertices.clone(R
     nSigmaZ = 4.0,
     sigmaZVertex = 4.0,
     fixedError = 0.5,
-    VertexCollection = "hiSelectedVertex",
+    VertexCollection = "hiSelectedPixelVertex",
     ptMin = 0.9,
     useFoundVertices = True,
     originRadius = 0.5
@@ -109,7 +114,6 @@ hiDetachedTripletStepPixelTracks = cms.EDProducer("PixelTrackProducer",
     # Cleaner
     Cleaner = cms.string("trackCleaner")
 )
-from Configuration.Eras.Modifier_trackingPhase1_cff import trackingPhase1
 trackingPhase1.toModify(hiDetachedTripletStepPixelTracks,
     SeedingHitSets = cms.InputTag("hiDetachedTripletStepTracksHitTripletsCA")
 )

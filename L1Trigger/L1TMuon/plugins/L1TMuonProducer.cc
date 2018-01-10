@@ -21,13 +21,12 @@
 // system include files
 #include <memory>
 #include <fstream>
-#include <sstream>
 
 // user include files
 #include "FWCore/Framework/interface/EventSetup.h"
 #include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/Framework/interface/Frameworkfwd.h"
-#include "FWCore/Framework/interface/EDProducer.h"
+#include "FWCore/Framework/interface/stream/EDProducer.h"
 
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
@@ -47,7 +46,9 @@
 
 #include "CondFormats/L1TObjects/interface/L1TMuonGlobalParams.h"
 #include "CondFormats/DataRecord/interface/L1TMuonGlobalParamsRcd.h"
+#include "CondFormats/DataRecord/interface/L1TMuonGlobalParamsO2ORcd.h"
 #include "L1Trigger/L1TMuon/interface/L1TMuonGlobalParamsHelper.h"
+#include "L1Trigger/L1TMuon/interface/L1TMuonGlobalParams_PUBLIC.h"
 
 #include "TMath.h"
 //
@@ -55,22 +56,20 @@
 //
 using namespace l1t;
 
-  class L1TMuonProducer : public edm::EDProducer {
+  class L1TMuonProducer : public edm::stream::EDProducer<> {
      public:
         explicit L1TMuonProducer(const edm::ParameterSet&);
-        ~L1TMuonProducer();
+        ~L1TMuonProducer() override;
 
         static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
 
      private:
-        virtual void beginJob() ;
-        virtual void produce(edm::Event&, const edm::EventSetup&);
-        virtual void endJob() ;
+        void produce(edm::Event&, const edm::EventSetup&) override;
 
-        virtual void beginRun(edm::Run const&, edm::EventSetup const&);
-        virtual void endRun(edm::Run const&, edm::EventSetup const&);
-        virtual void beginLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&);
-        virtual void endLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&);
+        void beginRun(edm::Run const&, edm::EventSetup const&) override;
+        void endRun(edm::Run const&, edm::EventSetup const&) override;
+        void beginLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&) override;
+        void endLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&) override;
 
         static bool compareMuons(const std::shared_ptr<MicroGMTConfiguration::InterMuon>& mu1,
                                 const std::shared_ptr<MicroGMTConfiguration::InterMuon>& mu2);
@@ -415,17 +414,13 @@ L1TMuonProducer::addMuonsToCollections(MicroGMTConfiguration::InterMuonList& col
     interout.push_back(mu);
     math::PtEtaPhiMLorentzVector vec{(mu->hwPt()-1)*0.5, mu->hwEta()*0.010875, mu->hwGlobalPhi()*0.010908, 0.0};
     int outMuQual = MicroGMTConfiguration::setOutputMuonQuality(mu->hwQual(), mu->trackFinderType(), mu->hwHF());
-    Muon outMu{vec, mu->hwPt(), mu->hwEta(), mu->hwGlobalPhi(), outMuQual, mu->hwSign(), mu->hwSignValid(), -1, mu->tfMuonIndex(), 0, true, -1, mu->hwDPhi(), mu->hwDEta(), mu->hwRank()};
+    // set tfMuonIndex and iso to 0 like in the FW
+    Muon outMu{vec, mu->hwPt(), mu->hwEta(), mu->hwGlobalPhi(), outMuQual, mu->hwSign(), mu->hwSignValid(), 0, 0, 0, true, 0, mu->hwDPhi(), mu->hwDEta(), mu->hwRank()};
     if (mu->hwSignValid()) {
       outMu.setCharge(1 - 2 * mu->hwSign());
     } else {
       outMu.setCharge(0);
     }
-    // set the coordinates at the vertex to be the same as coordinates at muon station
-    outMu.setHwEtaAtVtx(outMu.hwEta());
-    outMu.setHwPhiAtVtx(outMu.hwPhi());
-    outMu.setEtaAtVtx(outMu.eta());
-    outMu.setPhiAtVtx(outMu.phi());
 
     out->push_back(bx, outMu);
   }
@@ -504,17 +499,6 @@ L1TMuonProducer::convertMuons(const edm::Handle<MicroGMTConfiguration::InputColl
   }
 }
 
-// ------------ method called once each job just before starting event loop  ------------
-void
-L1TMuonProducer::beginJob()
-{
-}
-
-// ------------ method called once each job just after ending the event loop  ------------
-void
-L1TMuonProducer::endJob() {
-}
-
 // ------------ method called when starting to processes a run  ------------
 void
 L1TMuonProducer::beginRun(edm::Run const& run, edm::EventSetup const& iSetup)
@@ -523,10 +507,13 @@ L1TMuonProducer::beginRun(edm::Run const& run, edm::EventSetup const& iSetup)
   edm::ESHandle<L1TMuonGlobalParams> microGMTParamsHandle;
   microGMTParamsRcd.get(microGMTParamsHandle);
 
-  microGMTParamsHelper = std::unique_ptr<L1TMuonGlobalParamsHelper>(new L1TMuonGlobalParamsHelper(*microGMTParamsHandle.product()));
-  if (!microGMTParamsHelper) {
-    edm::LogError("L1TMuonProducer") << "Could not retrieve parameters from Event Setup" << std::endl;
-  }
+  std::unique_ptr<L1TMuonGlobalParams_PUBLIC> microGMTParams( new L1TMuonGlobalParams_PUBLIC( cast_to_L1TMuonGlobalParams_PUBLIC(*microGMTParamsHandle.product()) ) );
+  if( microGMTParams->pnodes_.empty() ){ 
+      edm::ESHandle<L1TMuonGlobalParams> o2oProtoHandle;
+      iSetup.get<L1TMuonGlobalParamsO2ORcd>().get(o2oProtoHandle);
+      microGMTParamsHelper = std::unique_ptr<L1TMuonGlobalParamsHelper>(new L1TMuonGlobalParamsHelper(*o2oProtoHandle.product()));
+  } else
+      microGMTParamsHelper.reset( new L1TMuonGlobalParamsHelper(cast_to_L1TMuonGlobalParams(*microGMTParams.get())) );
 
   //microGMTParamsHelper->print(std::cout);
   m_inputsToDisable  = microGMTParamsHelper->inputsToDisable();

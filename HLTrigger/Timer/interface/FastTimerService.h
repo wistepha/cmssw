@@ -16,7 +16,7 @@
 // tbb headers
 #include <tbb/concurrent_unordered_set.h>
 #include <tbb/enumerable_thread_specific.h>
-
+#include <tbb/task_scheduler_observer.h>
 
 // CMSSW headers
 #include "FWCore/ServiceRegistry/interface/ActivityRegistry.h"
@@ -28,6 +28,7 @@
 #include "FWCore/ServiceRegistry/interface/ProcessContext.h"
 #include "FWCore/ServiceRegistry/interface/GlobalContext.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
+#include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
 #include "FWCore/Framework/interface/TriggerNamesService.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "DataFormats/Common/interface/HLTPathStatus.h"
@@ -79,10 +80,11 @@ Performance of std::chrono::high_resolution_clock
 */
 
 
-class FastTimerService {
+class FastTimerService : public tbb::task_scheduler_observer
+{
 public:
   FastTimerService(const edm::ParameterSet &, edm::ActivityRegistry & );
-  ~FastTimerService();
+  ~FastTimerService() override;
 
 private:
   double queryModuleTime_(edm::StreamID, unsigned int id) const;
@@ -101,8 +103,8 @@ public:
   double queryHighlightTime(edm::StreamID sid, std::string const& label) const;
 
 private:
-  void ignoredSignal(std::string signal) const;
-  void unsupportedSignal(std::string signal) const;
+  void ignoredSignal(const std::string& signal) const;
+  void unsupportedSignal(const std::string& signal) const;
 
   // these signal pairs are not guaranteed to happen in the same thread
 
@@ -214,6 +216,10 @@ private:
   void preEventReadFromSource(edm::StreamContext const&, edm::ModuleCallingContext const&);
   void postEventReadFromSource(edm::StreamContext const&, edm::ModuleCallingContext const&);
 
+  // inherited from TBB task_scheduler_observer
+  void on_scheduler_entry(bool worker) final;
+  void on_scheduler_exit(bool worker) final;
+
 public:
   static void fillDescriptions(edm::ConfigurationDescriptions & descriptions);
 
@@ -240,6 +246,24 @@ private:
     uint64_t                   deallocated;
   };
 
+  // atomic version of Resources
+  struct AtomicResources {
+  public:
+    AtomicResources();
+    AtomicResources(AtomicResources const& other);
+    void reset();
+
+    AtomicResources & operator=(AtomicResources const& other);
+    AtomicResources & operator+=(AtomicResources const& other);
+    AtomicResources operator+(AtomicResources const& other) const;
+
+  public:
+    std::atomic<boost::chrono::nanoseconds::rep> time_thread;
+    std::atomic<boost::chrono::nanoseconds::rep> time_real;
+    std::atomic<uint64_t> allocated;
+    std::atomic<uint64_t> deallocated;
+  };
+
   struct ResourcesPerModule {
   public:
     ResourcesPerModule();
@@ -250,6 +274,24 @@ private:
   public:
     Resources total;
     unsigned  events;
+  };
+
+  // per-thread measurements
+  struct Measurement {
+  public:
+    Measurement();
+    void measure();
+    void measure_and_store(Resources & store);
+    void measure_and_accumulate(AtomicResources & store);
+
+  public:
+    #ifdef DEBUG_THREAD_CONCURRENCY
+    std::thread::id                                  id;
+    #endif // DEBUG_THREAD_CONCURRENCY
+    boost::chrono::thread_clock::time_point          time_thread;
+    boost::chrono::high_resolution_clock::time_point time_real;
+    uint64_t                                         allocated;
+    uint64_t                                         deallocated;
   };
 
   struct ResourcesPerPath {
@@ -289,30 +331,14 @@ private:
 
   public:
     Resources                        total;
+    AtomicResources                  overhead;
+    Resources                        event;                 // total time etc. spent between preSourceEvent and postEvent
+    Measurement                      event_measurement;
     std::vector<Resources>           highlight;
     std::vector<ResourcesPerModule>  modules;
     std::vector<ResourcesPerProcess> processes;
     unsigned                         events;
   };
-
-
-  // per-thread measurements
-  struct Measurement {
-  public:
-    Measurement();
-    void measure();
-    void measure_and_store(Resources & store);
-
-  public:
-    #ifdef DEBUG_THREAD_CONCURRENCY
-    std::thread::id                                  id;
-    #endif // DEBUG_THREAD_CONCURRENCY
-    boost::chrono::thread_clock::time_point          time_thread;
-    boost::chrono::high_resolution_clock::time_point time_real;
-    uint64_t                                         allocated;
-    uint64_t                                         deallocated;
-  };
-
 
   // plot ranges and resolution
   struct PlotRanges {
@@ -329,6 +355,7 @@ private:
     void reset();
     void book(DQMStore::IBooker &, std::string const& name, std::string const& title, PlotRanges const& ranges, unsigned int lumisections, bool byls);
     void fill(Resources const&, unsigned int lumisection);
+    void fill(AtomicResources const&, unsigned int lumisection);
     void fill_fraction(Resources const&, Resources const&, unsigned int lumisection);
 
   private:
@@ -348,7 +375,7 @@ private:
   public:
     PlotsPerPath();
     void reset();
-    void book(DQMStore::IBooker &, ProcessCallGraph const&, ProcessCallGraph::PathType const&, PlotRanges const& ranges, unsigned int lumisections, bool byls);
+    void book(DQMStore::IBooker &, std::string const &, ProcessCallGraph const&, ProcessCallGraph::PathType const&, PlotRanges const& ranges, unsigned int lumisections, bool byls);
     void fill(ProcessCallGraph::PathType const&, ResourcesPerJob const&, ResourcesPerPath const&, unsigned int lumisection);
 
   private:
@@ -375,7 +402,7 @@ private:
     void reset();
     void book(DQMStore::IBooker &, ProcessCallGraph const&, ProcessCallGraph::ProcessType const&,
         PlotRanges const& event_ranges, PlotRanges const& path_ranges,
-        unsigned int lumisections, bool byls);
+        unsigned int lumisections, bool bypath, bool byls);
     void fill(ProcessCallGraph::ProcessType const&, ResourcesPerJob const&, ResourcesPerProcess const&, unsigned int ls);
 
   private:
@@ -393,12 +420,14 @@ private:
     void book(DQMStore::IBooker &, ProcessCallGraph const&, std::vector<GroupOfModules> const&,
         PlotRanges const&  event_ranges, PlotRanges const&  path_ranges,
         PlotRanges const&  module_ranges, unsigned int lumisections,
-        bool bymodule, bool byls);
+        bool bymodule, bool bypath, bool byls);
     void fill(ProcessCallGraph const&, ResourcesPerJob const&, unsigned int ls);
 
   private:
     // resources spent in all the modules of the job
     PlotsPerElement              event_;
+    PlotsPerElement              event_ex_;
+    PlotsPerElement              overhead_;
     // resources spent in the highlighted modules
     std::vector<PlotsPerElement> highlight_;
     // resources spent in each module
@@ -448,6 +477,7 @@ private:
 
   bool                          enable_dqm_;                    // non const, depends on the availability of the DQMStore
   const bool                    enable_dqm_bymodule_;
+  const bool                    enable_dqm_bypath_;
   const bool                    enable_dqm_byls_;
   const bool                    enable_dqm_bynproc_;
 

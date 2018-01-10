@@ -10,6 +10,9 @@
 #include <vector>
 #include <boost/python/list.hpp>
 #include <boost/python/extract.hpp>
+#include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_generators.hpp>
+#include <boost/uuid/uuid_io.hpp>
 
 namespace cond {
 
@@ -113,6 +116,16 @@ namespace cond {
       return ss.str();
     }
 
+    std::string serialize( const PlotAnnotations& annotations, const std::string& imageFileName ){
+      std::stringstream ss;
+      ss << "{";
+      ss << serializeAnnotations( annotations );
+      ss <<",";
+      ss << "\"file\": \""<<imageFileName<<"\"";
+      ss << "}";
+      return ss.str();
+    }
+
     struct ModuleVersion {
       static constexpr const char* const label = "1.0";
     };
@@ -185,7 +198,7 @@ namespace cond {
 	m_plotAnnotations.m[PlotAnnotations::YAXIS_K] = yLabel;
         m_plotAnnotations.m[PlotAnnotations::PAYLOAD_TYPE_K] = cond::demangledName( typeid(PayloadType) );
       }
-      virtual ~Plot2D() = default;
+      ~Plot2D() override = default;
       std::string serializeData(){
 	return serialize( m_plotAnnotations, m_plotData);
       }
@@ -215,7 +228,7 @@ namespace cond {
         m_plotAnnotations.m[PlotAnnotations::ZAXIS_K] = zLabel;
         m_plotAnnotations.m[PlotAnnotations::PAYLOAD_TYPE_K] = cond::demangledName( typeid(PayloadType) );
       }
-      virtual ~Plot3D() = default;
+      ~Plot3D() override = default;
       std::string serializeData(){
 	return serialize( m_plotAnnotations, m_plotData);
       }
@@ -241,7 +254,7 @@ namespace cond {
       HistoryPlot( const std::string& title, const std::string& yLabel ) : 
 	Base( "History", title, "iov_since" , yLabel ){
       }
-      virtual ~HistoryPlot() = default;
+      ~HistoryPlot() override = default;
       bool fill( const std::vector<std::tuple<cond::Time_t,cond::Hash> >& iovs ) override {
 	for( auto iov : iovs ) {
 	  std::shared_ptr<PayloadType> payload = Base::fetchPayload( std::get<1>(iov) );
@@ -264,7 +277,7 @@ namespace cond {
       RunHistoryPlot( const std::string& title, const std::string& yLabel ) :
         Base( "RunHistory", title, "iov_since" , yLabel ){
       }
-      virtual ~RunHistoryPlot() = default;
+      ~RunHistoryPlot() override = default;
       bool fill( const std::vector<std::tuple<cond::Time_t,cond::Hash> >& iovs ) override {
         // for the lumi iovs we need to count the number of lumisections in every runs
 	std::map<cond::Time_t,unsigned int> runs;
@@ -301,7 +314,7 @@ namespace cond {
 	      lumiIndex++;
 	    }
 	    ind =  rind + (lumiIndex/lumiSize); 
-            label = boost::lexical_cast<std::string>( run )+" : "+boost::lexical_cast<std::string>( lumi );
+            label = std::to_string(run )+" : "+std::to_string(lumi );
 	    currentRun = run;
 	  } else {
 	    ind++;
@@ -310,7 +323,7 @@ namespace cond {
 	      boost::posix_time::ptime t = cond::time::to_boost( since );
 	      label = boost::posix_time::to_simple_string( t );
 	    } else {
-	      label = boost::lexical_cast<std::string>( since );
+	      label = std::to_string(since );
 	    } 
 	  }
 	  std::shared_ptr<PayloadType> payload = Base::fetchPayload( std::get<1>(iov) );
@@ -333,7 +346,7 @@ namespace cond {
       TimeHistoryPlot( const std::string& title, const std::string& yLabel ) : 
 	Base( "TimeHistory", title, "iov_since" , yLabel ){
       }
-      virtual ~TimeHistoryPlot() = default;
+      ~TimeHistoryPlot() override = default;
       bool fill( const std::vector<std::tuple<cond::Time_t,cond::Hash> >& iovs ) override {
 	cond::persistency::RunInfoProxy runInfo;
 	if(  Base::tagTimeType()==cond::lumiid ||  Base::tagTimeType()==cond::runnumber){
@@ -352,7 +365,7 @@ namespace cond {
           if(  Base::tagTimeType()==cond::lumiid ||  Base::tagTimeType()==cond::runnumber){
             unsigned int nlumi = since & 0xFFFFFFFF;
 	    if( Base::tagTimeType()==cond::lumiid ) since = since >> 32;
-            label = boost::lexical_cast<std::string>( since );
+            label = std::to_string(since );
 	    auto it = runInfo.find( since );
 	    if ( it == runInfo.end() ){
 	      // this should never happen...
@@ -362,7 +375,7 @@ namespace cond {
 	    // add the lumi sections...
 	    if(  Base::tagTimeType()==cond::lumiid ){
 	      time += boost::posix_time::seconds( cond::time::SECONDS_PER_LUMI*nlumi );
-              label += (" : "+boost::lexical_cast<std::string>( nlumi ) );
+              label += (" : "+std::to_string(nlumi ) );
 	    }
 	  } else if (  Base::tagTimeType()==cond::timestamp ){
 	    time = cond::time::to_boost( since );
@@ -388,7 +401,7 @@ namespace cond {
       ScatterPlot( const std::string& title, const std::string& xLabel, const std::string& yLabel ) :
 	Base( "Scatter", title, xLabel , yLabel ){
       }
-      virtual ~ScatterPlot() = default;
+      ~ScatterPlot() override = default;
       bool fill( const std::vector<std::tuple<cond::Time_t,cond::Hash> >& iovs ) override {
 	for( auto iov : iovs ) {
 	  std::shared_ptr<PayloadType> payload = Base::fetchPayload( std::get<1>(iov) );
@@ -409,12 +422,12 @@ namespace cond {
     public:
       typedef Plot2D<PayloadType,float,float > Base;
       // naive implementation, essentially provided as an example...
-      Histogram1D( const std::string& title, const std::string& xLabel, size_t nbins, float min, float max ):
-	Base( "Histo1D", title, xLabel , "entries" ),m_nbins(nbins),m_min(min),m_max(max){
+    Histogram1D( const std::string& title, const std::string& xLabel, size_t nbins, float min, float max, const std::string& yLabel="entries"):
+	Base( "Histo1D", title, xLabel , yLabel),m_nbins(nbins),m_min(min),m_max(max){
       }
-      virtual ~Histogram1D() = default;
+      ~Histogram1D() override = default;
       // 
-      void init(){
+      void init() override{
 	Base::m_plotData.clear();
 	float binSize = (m_max-m_min)/m_nbins;
 	if( binSize>0 ){
@@ -429,14 +442,21 @@ namespace cond {
       // to be used to fill the histogram!
       void fillWithValue( float value, float weight=1 ){
 	// ignoring underflow/overflows ( they can be easily added - the total entries as well  )
-        if( Base::m_plotData.size() && (value < m_max) && (value >= m_min) ){
+        if( !Base::m_plotData.empty() && (value < m_max) && (value >= m_min) ){
 	  size_t ibin = (value-m_min)/m_binSize;
 	  std::get<1>(Base::m_plotData[ibin])+=weight;
 	}
       }
+      
+      // to be used to fill the histogram!
+      void fillWithBinAndValue( size_t bin, float weight=1 ){
+	if(bin>=0 && bin<Base::m_plotData.size()){
+	  std::get<1>(Base::m_plotData[bin])=weight;
+	}
+      }
 
       // this one can ( and in general should ) be overridden - the implementation should use fillWithValue
-      virtual bool fill( const std::vector<std::tuple<cond::Time_t,cond::Hash> >& iovs ) override {
+      bool fill( const std::vector<std::tuple<cond::Time_t,cond::Hash> >& iovs ) override {
 	for( auto iov : iovs ) {
 	  std::shared_ptr<PayloadType> payload = Base::fetchPayload( std::get<1>(iov) );
           if( payload.get() ){
@@ -469,9 +489,9 @@ namespace cond {
 	Base( "Histo2D", title, xLabel , yLabel, "entries" ),m_nxbins( nxbins), m_xmin(xmin),m_xmax(xmax),m_nybins(nybins),m_ymin(ymin),m_ymax(ymax){
       }
 
-      virtual ~Histogram2D() = default;
+      ~Histogram2D() override = default;
       //
-      void init(){
+      void init() override{
 	Base::m_plotData.clear();
 	float xbinSize = (m_xmax-m_xmin)/m_nxbins;
         float ybinSize = (m_ymax-m_ymin)/m_nybins;
@@ -490,7 +510,7 @@ namespace cond {
       // to be used to fill the histogram!
       void fillWithValue( float xvalue, float yvalue, float weight=1 ){
 	// ignoring underflow/overflows ( they can be easily added - the total entries as well )
-	if( Base::m_plotData.size() && xvalue < m_xmax && xvalue >= m_xmin &&  yvalue < m_ymax && yvalue >= m_ymin ){
+	if( !Base::m_plotData.empty() && xvalue < m_xmax && xvalue >= m_xmin &&  yvalue < m_ymax && yvalue >= m_ymin ){
 	  size_t ixbin = (xvalue-m_xmin)/m_xbinSize;
 	  size_t iybin = (yvalue-m_ymin)/m_ybinSize;
 	  std::get<2>(Base::m_plotData[iybin*m_nxbins+ixbin])+=weight;
@@ -498,7 +518,7 @@ namespace cond {
       }
 
       // this one can ( and in general should ) be overridden - the implementation should use fillWithValue
-      virtual bool fill( const std::vector<std::tuple<cond::Time_t,cond::Hash> >& iovs ) override {
+      bool fill( const std::vector<std::tuple<cond::Time_t,cond::Hash> >& iovs ) override {
 	for( auto iov : iovs ) {
 	  std::shared_ptr<PayloadType> payload = Base::fetchPayload( std::get<1>(iov) );
           if( payload.get() ){
@@ -525,6 +545,36 @@ namespace cond {
       size_t m_nybins; 
       float m_ymin;
       float m_ymax;
+    };
+
+    // 
+    template <typename PayloadType> class PlotImage : public PlotBase {
+    public:
+      explicit PlotImage( const std::string& title ) : 
+	PlotBase(){
+	m_plotAnnotations.m[PlotAnnotations::PLOT_TYPE_K] = "Image";
+        m_plotAnnotations.m[PlotAnnotations::TITLE_K] = title;
+	std::string payloadTypeName = cond::demangledName( typeid(PayloadType) );
+        m_plotAnnotations.m[PlotAnnotations::PAYLOAD_TYPE_K] = payloadTypeName;
+	m_imageFileName = boost::lexical_cast<std::string>( ( boost::uuids::random_generator())() )+".png";
+      }
+
+      std::string serializeData(){
+	return serialize( m_plotAnnotations, m_imageFileName);
+      }
+
+      std::string processData( const std::vector<std::tuple<cond::Time_t,cond::Hash> >& iovs ) override {
+	fill( iovs );
+	return serializeData();
+      }
+
+      std::shared_ptr<PayloadType> fetchPayload( const cond::Hash& payloadHash ){
+      	return PlotBase::fetchPayload<PayloadType>( payloadHash );
+      }
+
+      virtual bool fill( const std::vector<std::tuple<cond::Time_t,cond::Hash> >& iovs ) = 0;
+    protected:
+      std::string m_imageFileName;
     };
 
   }

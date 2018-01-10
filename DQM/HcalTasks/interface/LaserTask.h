@@ -22,12 +22,12 @@ class LaserTask : public hcaldqm::DQTask
 {
 	public:
 		LaserTask(edm::ParameterSet const&);
-		virtual ~LaserTask()
+		~LaserTask() override
 		{}
 
-		virtual void bookHistograms(DQMStore::IBooker&,
-			edm::Run const&, edm::EventSetup const&);
-		virtual void endRun(edm::Run const& r, edm::EventSetup const&)
+		void bookHistograms(DQMStore::IBooker&,
+			edm::Run const&, edm::EventSetup const&) override;
+		void endRun(edm::Run const& r, edm::EventSetup const&) override
 		{
 			if (_ptype==hcaldqm::fLocal)
 			{
@@ -37,28 +37,29 @@ class LaserTask : public hcaldqm::DQTask
 					this->_dump();
 			}
 		}
-		virtual void endLuminosityBlock(edm::LuminosityBlock const&,
-			edm::EventSetup const&);
+		void endLuminosityBlock(edm::LuminosityBlock const&,
+			edm::EventSetup const&) override;
 
 	protected:
 		//	funcs
-		virtual void _process(edm::Event const&, edm::EventSetup const&);
-		virtual void _resetMonitors(hcaldqm::UpdateFreq);
-		virtual bool _isApplicable(edm::Event const&);
+		void _process(edm::Event const&, edm::EventSetup const&) override;
+		void _resetMonitors(hcaldqm::UpdateFreq) override;
+		bool _isApplicable(edm::Event const&) override;
 		virtual void _dump();
 
 		//	tags and tokens
 		edm::InputTag	_tagHBHE;
+		edm::InputTag	_tagHEP17;
 		edm::InputTag	_tagHO;
 		edm::InputTag	_tagHF;
 		edm::InputTag	_taguMN;
 		edm::EDGetTokenT<HBHEDigiCollection> _tokHBHE;
+		edm::EDGetTokenT<QIE11DigiCollection> _tokHEP17;
 		edm::EDGetTokenT<HODigiCollection> _tokHO;
 		edm::EDGetTokenT<QIE10DigiCollection> _tokHF;
 		edm::EDGetTokenT<HcalUMNioDigi> _tokuMN;
 
 		//	emap
-		HcalElectronicsMap const* _emap;
 		hcaldqm::electronicsmap::ElectronicsMap _ehashmap;
 		hcaldqm::filter::HashFilter _filter_uTCA;
 		hcaldqm::filter::HashFilter _filter_VME;
@@ -66,6 +67,7 @@ class LaserTask : public hcaldqm::DQTask
 		//	Cuts and variables
 		int _nevents;
 		double _lowHBHE;
+		double _lowHEP17;
 		double _lowHO;
 		double _lowHF;
 		uint32_t _laserType;

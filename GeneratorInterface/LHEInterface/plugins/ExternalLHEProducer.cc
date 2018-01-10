@@ -66,22 +66,22 @@ class ExternalLHEProducer : public edm::one::EDProducer<edm::BeginRunProducer,
                                                         edm::EndRunProducer> {
 public:
   explicit ExternalLHEProducer(const edm::ParameterSet& iConfig);
-  virtual ~ExternalLHEProducer();
+  ~ExternalLHEProducer() override;
   
   static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
   
 private:
 
-  virtual void produce(edm::Event&, const edm::EventSetup&) override;
-  virtual void beginRunProduce(edm::Run& run, edm::EventSetup const& es) override;
-  virtual void endRunProduce(edm::Run&, edm::EventSetup const&) override;
-  virtual void preallocThreads(unsigned int) override;
+  void produce(edm::Event&, const edm::EventSetup&) override;
+  void beginRunProduce(edm::Run& run, edm::EventSetup const& es) override;
+  void endRunProduce(edm::Run&, edm::EventSetup const&) override;
+  void preallocThreads(unsigned int) override;
 
   int closeDescriptors(int preserve);
   void executeScript();
   std::unique_ptr<std::string> readOutput();
 
-  virtual void nextEvent();
+  void nextEvent();
   
   // ----------member data ---------------------------
   std::string scriptName_;
@@ -92,7 +92,7 @@ private:
   unsigned int nThreads_{1};
   std::string outputContents_;
 
-  std::auto_ptr<lhef::LHEReader>		reader_;
+  std::unique_ptr<lhef::LHEReader>	reader_;
   boost::shared_ptr<lhef::LHERunInfo>	runInfoLast;
   boost::shared_ptr<lhef::LHERunInfo>	runInfo;
   boost::shared_ptr<lhef::LHEEvent>	partonLevel;
@@ -125,7 +125,7 @@ private:
 // constructors and destructor
 //
 ExternalLHEProducer::ExternalLHEProducer(const edm::ParameterSet& iConfig) :
-  scriptName_((iConfig.getParameter<edm::FileInPath>("scriptName")).fullPath().c_str()),
+  scriptName_((iConfig.getParameter<edm::FileInPath>("scriptName")).fullPath()),
   outputFile_(iConfig.getParameter<std::string>("outputFile")),
   args_(iConfig.getParameter<std::vector<std::string> >("args")),
   npars_(iConfig.getParameter<uint32_t>("numberOfParameters")),
@@ -137,7 +137,7 @@ ExternalLHEProducer::ExternalLHEProducer(const edm::ParameterSet& iConfig) :
 
   produces<LHEEventProduct>();
   produces<LHERunInfoProduct, edm::Transition::BeginRun>();
-  //produces<LHERunInfoProduct, edm::Transition::EndRun>();
+  produces<LHERunInfoProduct, edm::Transition::EndRun>();
 }
 
 
@@ -163,7 +163,7 @@ ExternalLHEProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetup)
 {
   nextEvent();
   if (!partonLevel) {
-    throw cms::Exception("ExternalLHEProducer") << "No lhe event found in ExternalLHEProducer::produce().  "
+    throw edm::Exception(edm::errors::EventGenerationFailure) << "No lhe event found in ExternalLHEProducer::produce().  "
     << "The likely cause is that the lhe file contains fewer events than were requested, which is possible "
     << "in case of phase space integration or uneweighting efficiency problems.";
   }
@@ -225,7 +225,8 @@ ExternalLHEProducer::beginRunProduce(edm::Run& run, edm::EventSetup const& es)
   
   std::ostringstream eventStream;
   eventStream << nEvents_;
-  args_.push_back(eventStream.str());
+  // args_.push_back(eventStream.str());
+  args_.insert(args_.begin() + 1, eventStream.str());
 
   // pass the random number generator seed as last argument
 
@@ -239,9 +240,11 @@ ExternalLHEProducer::beginRunProduce(edm::Run& run, edm::EventSetup const& es)
   }
   std::ostringstream randomStream;
   randomStream << rng->mySeed(); 
-  args_.push_back(randomStream.str());
+  // args_.push_back(randomStream.str());
+  args_.insert(args_.begin() + 2, randomStream.str());
 
-  args_.emplace_back(std::to_string(nThreads_));
+  // args_.emplace_back(std::to_string(nThreads_));
+  args_.insert(args_.begin() + 3, std::to_string(nThreads_));
 
   for ( unsigned int iArg = 0; iArg < args_.size() ; iArg++ ) {
     LogDebug("LHEInputArgs") << "arg [" << iArg << "] = " << args_[iArg];
@@ -267,8 +270,7 @@ ExternalLHEProducer::beginRunProduce(edm::Run& run, edm::EventSetup const& es)
 
   std::vector<std::string> infiles(1, outputFile_);
   unsigned int skip = 0;
-  std::auto_ptr<lhef::LHEReader> thisRead(new lhef::LHEReader(infiles, skip));
-  reader_ = thisRead;
+  reader_ = std::make_unique<lhef::LHEReader>(infiles, skip);
 
   nextEvent();
   if (runInfoLast) {
@@ -307,7 +309,7 @@ ExternalLHEProducer::endRunProduce(edm::Run& run, edm::EventSetup const& es)
   
   nextEvent();
   if (partonLevel) {
-    throw cms::Exception("ExternalLHEProducer") << "Error in ExternalLHEProducer::endRunProduce().  "
+    throw edm::Exception(edm::errors::EventGenerationFailure) << "Error in ExternalLHEProducer::endRunProduce().  "
     << "Event loop is over, but there are still lhe events to process."
     << "This could happen if lhe file contains more events than requested.  This is never expected to happen.";
   }  
@@ -332,7 +334,7 @@ ExternalLHEProducer::closeDescriptors(int preserve)
   maxfd = preserve;
   if ((dir = opendir("/proc/self/fd"))) {
     errno = 0;
-    while ((dp = readdir (dir)) != NULL) {
+    while ((dp = readdir (dir)) != nullptr) {
       if ((strcmp(dp->d_name, ".") == 0)  || (strcmp(dp->d_name, "..") == 0)) {
         continue;
       }
@@ -389,7 +391,7 @@ ExternalLHEProducer::executeScript()
   for (unsigned int i=1; i<argc; i++) {
     argv[i] = strdup(args_[i-1].c_str());
   }
-  argv[argc] = NULL;
+  argv[argc] = nullptr;
 
   pid_t pid = fork();
   if (pid == 0) {
@@ -496,6 +498,7 @@ void ExternalLHEProducer::nextEvent()
   if (partonLevel)
     return;
 
+  if(not reader_) { return;}
   partonLevel = reader_->next();
   if (!partonLevel)
     return;

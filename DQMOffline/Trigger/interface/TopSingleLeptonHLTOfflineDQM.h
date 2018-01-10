@@ -51,12 +51,12 @@ namespace HLTOfflineDQMTopSingleLepton {
       /// default contructor
       MonitorSingleLepton(const char* label, const edm::ParameterSet& cfg, edm::ConsumesCollector&& iC);
       /// default destructor
-      ~MonitorSingleLepton(){};
+      ~MonitorSingleLepton()= default;;
 
       /// book histograms in subdirectory _directory_
       void book(DQMStore::IBooker& store_);
       /// fill monitor histograms with electronId and jetCorrections
-      void fill(const edm::Event& event, const edm::EventSetup& setup, const HLTConfigProvider& hltConfig, const std::vector<std::string> triggerPaths);
+      void fill(const edm::Event& event, const edm::EventSetup& setup, const HLTConfigProvider& hltConfig, const std::vector<std::string>& triggerPaths);
 
     private:
       /// deduce monitorPath from label, the label is expected
@@ -67,18 +67,18 @@ namespace HLTOfflineDQMTopSingleLepton {
       std::string selectionPath(const std::string& label) const { return label.substr(0, label.find(':')); };  
 
       /// set configurable labels for trigger monitoring histograms
-      void triggerBinLabels(std::string channel, const std::vector<std::string>& labels);
+      void triggerBinLabels(const std::string& channel, const std::vector<std::string>& labels);
       /// fill trigger monitoring histograms
-      void fill(const edm::Event& event, const edm::TriggerResults& triggerTable, std::string channel, const std::vector<std::string>& labels) const;
+      void fill(const edm::Event& event, const edm::TriggerResults& triggerTable, const std::string& channel, const std::vector<std::string>& labels) const;
 
       /// check if histogram was booked
-      bool booked(const std::string histName) const { return hists_.find(histName.c_str())!=hists_.end(); };
+      bool booked(const std::string& histName) const { return hists_.find(histName)!=hists_.end(); };
       /// fill histogram if it had been booked before
-      void fill(const std::string histName, double value) const { if(booked(histName.c_str())) hists_.find(histName.c_str())->second->Fill(value); };
+      void fill(const std::string& histName, double value) const { if(booked(histName)) hists_.find(histName)->second->Fill(value); };
       /// fill histogram if it had been booked before (2-dim version)
-      void fill(const std::string histName, double xValue, double yValue) const { if(booked(histName.c_str())) hists_.find(histName.c_str())->second->Fill(xValue, yValue); };
+      void fill(const std::string& histName, double xValue, double yValue) const { if(booked(histName)) hists_.find(histName)->second->Fill(xValue, yValue); };
       /// fill histogram if it had been booked before (2-dim version)
-      void fill(const std::string histName, double xValue, double yValue, double zValue) const { if(booked(histName.c_str())) hists_.find(histName.c_str())->second->Fill(xValue, yValue, zValue); };
+      void fill(const std::string& histName, double xValue, double yValue, double zValue) const { if(booked(histName)) hists_.find(histName)->second->Fill(xValue, yValue, zValue); };
 
     private:
       std::string folder_;
@@ -167,19 +167,19 @@ namespace HLTOfflineDQMTopSingleLepton {
   };
 
   inline void 
-    MonitorSingleLepton::triggerBinLabels(std::string channel, const std::vector<std::string>& labels)
+    MonitorSingleLepton::triggerBinLabels(const std::string& channel, const std::vector<std::string>& labels)
     {
       for(unsigned int idx=0; idx<labels.size(); ++idx){
-        hists_[(channel+"Mon_").c_str()]->setBinLabel( idx+1, "["+monitorPath(labels[idx])+"]", 1);
+        hists_[channel+"Mon_"]->setBinLabel( idx+1, "["+monitorPath(labels[idx])+"]", 1);
       }
     }
 
   inline void 
-    MonitorSingleLepton::fill(const edm::Event& event, const edm::TriggerResults& triggerTable, std::string channel, const std::vector<std::string>& labels) const
+    MonitorSingleLepton::fill(const edm::Event& event, const edm::TriggerResults& triggerTable, const std::string& channel, const std::vector<std::string>& labels) const
     {
       for(unsigned int idx=0; idx<labels.size(); ++idx){
         if( acceptHLT(event, triggerTable, monitorPath(labels[idx])) ){
-          fill((channel+"Mon_").c_str(), idx+0.5 );
+          fill(channel+"Mon_", idx+0.5 );
         }
       }
     }
@@ -234,8 +234,8 @@ class TopSingleLeptonHLTOfflineDQM : public DQMEDAnalyzer  {
     TopSingleLeptonHLTOfflineDQM(const edm::ParameterSet& cfg);
 
     /// do this during the event loop
-    virtual void dqmBeginRun(const edm::Run& r, const edm::EventSetup& c) override;
-    virtual void analyze(const edm::Event& event, const edm::EventSetup& setup) override;
+    void dqmBeginRun(const edm::Run& r, const edm::EventSetup& c) override;
+    void analyze(const edm::Event& event, const edm::EventSetup& setup) override;
     void bookHistograms(DQMStore::IBooker &i, edm::Run const&, edm::EventSetup const&) override;
 
   private:

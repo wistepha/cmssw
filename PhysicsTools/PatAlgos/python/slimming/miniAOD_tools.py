@@ -26,6 +26,7 @@ def miniAOD_customizeCommon(process):
     process.patMuons.puppiNoLeptonsIsolationPhotons        = cms.InputTag("muonPUPPINoLeptonsIsolation","gamma-DR040-ThresholdVeto000-ConeVeto001")
 
     process.patMuons.computeMiniIso = cms.bool(True)
+    process.patMuons.computeMuonMVA = cms.bool(True)
     
     #
     # disable embedding of electron and photon associated objects already stored by the ReducedEGProducer
@@ -39,6 +40,8 @@ def miniAOD_customizeCommon(process):
     process.patElectrons.embedPflowPreshowerClusters    = False  ## process.patElectrons.embed in AOD externally stored the electron's pflow preshower clusters
     process.patElectrons.embedRecHits         = False  ## process.patElectrons.embed in AOD externally stored the RecHits - can be called from the PATElectronProducer
     process.patElectrons.electronSource = cms.InputTag("reducedEgamma","reducedGedGsfElectrons")
+    process.patElectrons.usePfCandidateMultiMap = True
+    process.patElectrons.pfCandidateMultiMap    = cms.InputTag("reducedEgamma","reducedGsfElectronPfCandMap")
     process.patElectrons.electronIDSources = cms.PSet(
             # configure many IDs as InputTag <someName> = <someTag> you
             # can comment out those you don't want to save some disk space
@@ -92,12 +95,15 @@ def miniAOD_customizeCommon(process):
                 PhotonCutBasedIDTight = cms.InputTag('reducedEgamma',
                                                       'PhotonCutBasedIDTight')
               )
-
+    
     process.phPFIsoDepositChargedPAT.src = cms.InputTag("reducedEgamma","reducedGedPhotons")
     process.phPFIsoDepositChargedAllPAT.src = cms.InputTag("reducedEgamma","reducedGedPhotons")
     process.phPFIsoDepositNeutralPAT.src = cms.InputTag("reducedEgamma","reducedGedPhotons")
     process.phPFIsoDepositGammaPAT.src = cms.InputTag("reducedEgamma","reducedGedPhotons")
     process.phPFIsoDepositPUPAT.src = cms.InputTag("reducedEgamma","reducedGedPhotons")
+    #
+    process.patOOTPhotons.photonSource = cms.InputTag("reducedEgamma","reducedOOTPhotons")
+    process.patOOTPhotons.electronSource = cms.InputTag("reducedEgamma","reducedGedGsfElectrons")
     #
     process.selectedPatJets.cut = cms.string("pt > 10")
     process.selectedPatMuons.cut = cms.string("pt > 5 || isPFMuon || (pt > 3 && (isGlobalMuon || isStandAloneMuon || numberOfMatches > 0 || muonID('RPCMuLoose')))")
@@ -167,6 +173,56 @@ def miniAOD_customizeCommon(process):
     del process.slimmedMETsNoHF.caloMET
     # ================== NoHF pfMET
 
+    #  ==================  CHSMET 
+    process.CHSCands = cms.EDFilter("CandPtrSelector",
+                                    src=cms.InputTag("packedPFCandidates"),
+                                    cut=cms.string("fromPV(0) > 0")
+                                    )
+    task.add(process.CHSCands)
+
+    process.pfMetCHS = cms.EDProducer("PFMETProducer",
+                                      src = cms.InputTag("CHSCands"),
+                                      alias = cms.string('pfMet'),
+                                      globalThreshold = cms.double(0.0),
+                                      calculateSignificance = cms.bool(False),
+                                      )
+    task.add(process.pfMetCHS)    
+
+    addMETCollection(process,
+                     labelName = "patCHSMet",
+                     metSource = "pfMetCHS"
+                     )
+
+    process.patCHSMet.computeMETSignificance = cms.bool(False)
+
+    #  ==================  CHSMET 
+
+    #  ==================  TrkMET 
+    process.TrkCands = cms.EDFilter("CandPtrSelector",
+                                    src=cms.InputTag("packedPFCandidates"),
+                                    cut=cms.string("charge()!=0 && pvAssociationQuality()>=4 && vertexRef().key()==0")
+                                    )
+    task.add(process.TrkCands)
+
+    process.pfMetTrk = cms.EDProducer("PFMETProducer",
+                                      src = cms.InputTag("TrkCands"),
+                                      alias = cms.string('pfMet'),
+                                      globalThreshold = cms.double(0.0),
+                                      calculateSignificance = cms.bool(False),
+                                      )
+
+    task.add(process.pfMetTrk)
+
+    addMETCollection(process,
+                     labelName = "patTrkMet",
+                     metSource = "pfMetTrk"
+                     )
+
+    process.patTrkMet.computeMETSignificance = cms.bool(False)
+
+    #  ==================  TrkMET 
+    
+
     ## PU JetID
     process.load("RecoJets.JetProducers.PileupJetID_cfi")
     task.add(process.pileUpJetIDTask)
@@ -179,6 +235,15 @@ def miniAOD_customizeCommon(process):
     task.add(process.QGTaggerTask)
 
     process.patJets.userData.userFloats.src += [ cms.InputTag('QGTagger:qgLikelihood'), ]
+
+    ## DeepCSV meta discriminators (simple arithmethic on output probabilities)
+    process.load('RecoBTag.Combined.deepFlavour_cff')
+    task.add(process.pfDeepCSVDiscriminatorsJetTags)
+    process.patJets.discriminatorSources.extend([
+            cms.InputTag('pfDeepCSVDiscriminatorsJetTags:BvsAll' ),
+            cms.InputTag('pfDeepCSVDiscriminatorsJetTags:CvsB'   ),
+            cms.InputTag('pfDeepCSVDiscriminatorsJetTags:CvsL'   ),
+            ])
 
     ## CaloJets
     process.caloJetMap = cms.EDProducer("RecoJetDeltaRValueMapProducer",
@@ -258,6 +323,17 @@ def miniAOD_customizeCommon(process):
     from RecoTauTag.Configuration.boostedHPSPFTaus_cfi import addBoostedTaus
     addBoostedTaus(process)
     #---------------------------------------------------------------------------
+    #Adding tau reco for 80X legacy reMiniAOD
+    #make a copy of makePatTauTask to avoid labels and substitution problems
+    _makePatTausTaskWithTauReReco = process.makePatTausTask.copy()
+    #add PFTau reco modules to cloned makePatTauTask
+    process.load("RecoTauTag.Configuration.RecoPFTauTag_cff")
+    _makePatTausTaskWithTauReReco.add(process.PFTauTask)
+    #replace original task by extended one for the miniAOD_80XLegacy era
+    from Configuration.Eras.Modifier_run2_miniAOD_80XLegacy_cff import run2_miniAOD_80XLegacy
+    run2_miniAOD_80XLegacy.toReplaceWith(
+        process.makePatTausTask, _makePatTausTaskWithTauReReco)
+    #---------------------------------------------------------------------------
 
     # Adding puppi jets
     if not hasattr(process, 'ak4PFJetsPuppi'): #MM: avoid confilct with substructure call
@@ -265,7 +341,6 @@ def miniAOD_customizeCommon(process):
         task.add(process.ak4PFJets)
         task.add(process.ak4PFJetsPuppi)
     process.ak4PFJetsPuppi.doAreaFastjet = True # even for standard ak4PFJets this is overwritten in RecoJets/Configuration/python/RecoPFJets_cff
-
     from RecoJets.JetAssociationProducers.j2tParametersVX_cfi import j2tParametersVX
     process.ak4PFJetsPuppiTracksAssociatorAtVertex = cms.EDProducer("JetTracksAssociatorAtVertex",
         j2tParametersVX,
@@ -326,12 +401,31 @@ def miniAOD_customizeCommon(process):
     process.slimmedMETsPuppi.tXYUncForT01Smear = cms.InputTag("patPFMetT0pcT1SmearTxyPuppi")
     del process.slimmedMETsPuppi.caloMET
 
+    # add DetIdAssociatorRecords to EventSetup (for isolatedTracks)
+    process.load("TrackingTools.TrackAssociator.DetIdAssociatorESProducer_cff")
+
+    # EGamma objects from HGCal are not yet in GED
+    # so add companion collections for Phase-II MiniAOD production
+    from Configuration.Eras.Modifier_phase2_hgcal_cff import phase2_hgcal
+    process.load("RecoEgamma.EgammaTools.slimmedEgammaFromMultiCl_cff")
+    phase2_hgcal.toModify(task, func=lambda t: t.add(process.slimmedEgammaFromMultiClTask))
 
 
 def miniAOD_customizeMC(process):
+    task = getPatAlgosToolsTask(process)
+    #GenJetFlavourInfos
+    process.load("PhysicsTools.JetMCAlgos.HadronAndPartonSelector_cfi")
+    task.add(process.selectedHadronsAndPartons)
+    task.add(process.selectedHadronsAndPartonsForGenJetsFlavourInfos)
+    
+    process.load("PhysicsTools.JetMCAlgos.AK4GenJetFlavourInfos_cfi")
+    task.add(process.ak4GenJetFlavourInfos)
+
+    process.load('PhysicsTools.PatAlgos.slimming.slimmedGenJetsFlavourInfos_cfi')
+    task.add(process.slimmedGenJetsFlavourInfos)
+
     #slimmed pileup information
     process.load('PhysicsTools.PatAlgos.slimming.slimmedAddPileupInfo_cfi')
-    task = getPatAlgosToolsTask(process)
     task.add(process.slimmedAddPileupInfo)
 
     process.muonMatch.matched = "prunedGenParticles"
@@ -339,12 +433,14 @@ def miniAOD_customizeMC(process):
     process.electronMatch.src = cms.InputTag("reducedEgamma","reducedGedGsfElectrons")
     process.photonMatch.matched = "prunedGenParticles"
     process.photonMatch.src = cms.InputTag("reducedEgamma","reducedGedPhotons")
+    process.ootPhotonMatch.matched = "prunedGenParticles"
+    process.ootPhotonMatch.src = cms.InputTag("reducedEgamma","reducedOOTPhotons")
     process.tauMatch.matched = "prunedGenParticles"
     process.tauGenJets.GenParticles = "prunedGenParticles"
     #Boosted taus 
     process.tauMatchBoosted.matched = "prunedGenParticles"
     process.tauGenJetsBoosted.GenParticles = "prunedGenParticles"
-    process.patJetPartons.particles = "prunedGenParticles"
+    process.patJetPartons.particles = "genParticles"
     process.patJetPartonMatch.matched = "prunedGenParticles"
     process.patJetPartonMatch.mcStatus = [ 3, 23 ]
     process.patJetGenJetMatch.matched = "slimmedGenJets"
@@ -352,6 +448,7 @@ def miniAOD_customizeMC(process):
     process.patMuons.embedGenMatch = False
     process.patElectrons.embedGenMatch = False
     process.patPhotons.embedGenMatch = False
+    process.patOOTPhotons.embedGenMatch = False
     process.patTaus.embedGenMatch = False
     process.patTausBoosted.embedGenMatch = False
     process.patJets.embedGenPartonMatch = False
@@ -359,6 +456,9 @@ def miniAOD_customizeMC(process):
     process.patJetFlavourAssociation.rParam = 0.4
 
 def miniAOD_customizeOutput(out):
+    from PhysicsTools.PatAlgos.slimming.MicroEventContent_cff import MiniAODOverrideBranchesSplitLevel
+    out.overrideBranchesSplitLevel = MiniAODOverrideBranchesSplitLevel
+    out.splitLevel = cms.untracked.int32(0)
     out.dropMetaData = cms.untracked.string('ALL')
     out.fastCloning= cms.untracked.bool(False)
     out.overrideInputFileSplitLevels = cms.untracked.bool(True)
@@ -367,7 +467,7 @@ def miniAOD_customizeOutput(out):
 def miniAOD_customizeData(process):
     from PhysicsTools.PatAlgos.tools.coreTools import runOnData
     runOnData( process, outputModules = [] )
-    process.load("RecoCTPPS.TotemRPLocal.ctppsLocalTrackLiteProducer_cfi")
+    process.load("RecoCTPPS.TotemRPLocal.ctppsLocalTrackLiteProducer_cff")
     task = getPatAlgosToolsTask(process)
     task.add(process.ctppsLocalTrackLiteProducer)
 
@@ -379,4 +479,13 @@ def miniAOD_customizeAllData(process):
 def miniAOD_customizeAllMC(process):
     miniAOD_customizeCommon(process)
     miniAOD_customizeMC(process)
+    return process
+
+def miniAOD_customizeAllMCFastSim(process):
+    miniAOD_customizeCommon(process)
+    miniAOD_customizeMC(process)
+    from PhysicsTools.PatAlgos.slimming.metFilterPaths_cff import miniAOD_customizeMETFiltersFastSim
+    process = miniAOD_customizeMETFiltersFastSim(process)
+    from PhysicsTools.PatAlgos.slimming.isolatedTracks_cfi import miniAOD_customizeIsolatedTracksFastSim
+    process = miniAOD_customizeIsolatedTracksFastSim(process)
     return process

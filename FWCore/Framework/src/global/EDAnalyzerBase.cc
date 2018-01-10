@@ -64,6 +64,7 @@ namespace edm {
     void
     EDAnalyzerBase::doPreallocate(PreallocationConfiguration const& iPrealloc) {
       preallocStreams(iPrealloc.numberOfStreams());
+      preallocate(iPrealloc);
     }
 
     void
@@ -178,17 +179,8 @@ namespace edm {
       //respondToCloseInputFile(fb);
     }
     
-    void
-    EDAnalyzerBase::doPreForkReleaseResources() {
-      preForkReleaseResources();
-    }
-    
-    void
-    EDAnalyzerBase::doPostForkReacquireResources(unsigned int iChildIndex, unsigned int iNumberOfChildren) {
-      postForkReacquireResources(iChildIndex, iNumberOfChildren);
-    }
-    
     void EDAnalyzerBase::preallocStreams(unsigned int) {}
+    void EDAnalyzerBase::preallocate(PreallocationConfiguration const&) {}
     void EDAnalyzerBase::doBeginStream_(StreamID id){}
     void EDAnalyzerBase::doEndStream_(StreamID id) {}
     void EDAnalyzerBase::doStreamBeginRun_(StreamID id, Run const& rp, EventSetup const& c) {}

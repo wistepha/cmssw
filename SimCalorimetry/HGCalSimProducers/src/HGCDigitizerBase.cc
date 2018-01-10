@@ -52,6 +52,13 @@ HGCDigitizerBase<DFr>::HGCDigitizerBase(const edm::ParameterSet& ps) {
   doTimeSamples_ = myCfg_.getParameter< bool >("doTimeSamples");
   if(myCfg_.exists("keV2fC"))   keV2fC_   = myCfg_.getParameter<double>("keV2fC");
   else                          keV2fC_   = 1.0;
+
+  if( myCfg_.existsAs<std::vector<double> >( "chargeCollectionEfficiencies" ) ) {
+    cce_ = myCfg_.getParameter<std::vector<double> >("chargeCollectionEfficiencies");
+  } else {
+    std::vector<double>().swap(cce_);
+  }
+
   if(myCfg_.existsAs<double>("noise_fC")) {
     noise_fC_.resize(1);
     noise_fC_[0] = myCfg_.getParameter<double>("noise_fC");
@@ -66,6 +73,7 @@ HGCDigitizerBase<DFr>::HGCDigitizerBase(const edm::ParameterSet& ps) {
   }
   edm::ParameterSet feCfg = myCfg_.getParameter<edm::ParameterSet>("feCfg");
   myFEelectronics_        = std::unique_ptr<HGCFEElectronics<DFr> >( new HGCFEElectronics<DFr>(feCfg) );
+  myFEelectronics_->SetNoiseValues(noise_fC_); 
 }
 
 template<class DFr>
@@ -113,6 +121,7 @@ void HGCDigitizerBase<DFr>::runSimple(std::unique_ptr<HGCDigitizerBase::DColl> &
       
       //add noise (in fC)
       //we assume it's randomly distributed and won't impact ToA measurement
+      //also assume that it is related to the charge path only and that noise fluctuation for ToA circuit be handled separately
       totalCharge += std::max( (float)CLHEP::RandGaussQ::shoot(engine,0.0,cell.size*noise_fC_[cell.thickness-1]) , 0.f );
       if(totalCharge<0.f) totalCharge=0.f;
       
@@ -120,8 +129,11 @@ void HGCDigitizerBase<DFr>::runSimple(std::unique_ptr<HGCDigitizerBase::DColl> &
     }
     
     //run the shaper to create a new data frame
-    DFr rawDataFrame( id );    
-    myFEelectronics_->runShaper(rawDataFrame, chargeColl, toa, cell.thickness, engine);
+    DFr rawDataFrame( id );
+    if( !cce_.empty() )
+      myFEelectronics_->runShaper(rawDataFrame, chargeColl, toa, cell.thickness, engine, cce_[cell.thickness-1]);
+    else
+      myFEelectronics_->runShaper(rawDataFrame, chargeColl, toa, cell.thickness, engine);
 
     //update the output according to the final shape
     updateOutput(coll,rawDataFrame);

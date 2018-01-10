@@ -12,17 +12,21 @@ SimGeneralRAW = cms.PSet(
     outputCommands = cms.untracked.vstring('keep CrossingFramePlaybackInfoNew_*_*_*',
                                            'keep PileupSummaryInfos_*_*_*',
                                            'keep int6stdbitsetstdpairs_*_AffectedAPVList_*',
-                                           'keep int_*_bunchSpacing_*')
+                                           'keep int_*_bunchSpacing_*',
+                                           'keep *_genPUProtons_*_*',
+                                           'keep *_mix_MergedTrackTruth_*') 
 )
 #RECO content
 SimGeneralRECO = cms.PSet(
     outputCommands = cms.untracked.vstring('keep PileupSummaryInfos_*_*_*',
-                                           'keep int_*_bunchSpacing_*')
+                                           'keep int_*_bunchSpacing_*',
+                                           'keep *_genPUProtons_*_*') 
 )
 #AOD content
 SimGeneralAOD = cms.PSet(
     outputCommands = cms.untracked.vstring('keep PileupSummaryInfos_*_*_*',
-                                           'keep int_*_bunchSpacing_*')
+                                           'keep int_*_bunchSpacing_*',
+                                           'keep *_genPUProtons_*_*') 
 )
 
 # mods for HGCAL
@@ -39,3 +43,9 @@ phase2_timing.toModify( SimGeneralRAW, outputCommands = SimGeneralRAW.outputComm
 phase2_timing.toModify( SimGeneralFEVTDEBUG, outputCommands = SimGeneralFEVTDEBUG.outputCommands + _phase2_timing_extraCommands )
 phase2_timing.toModify( SimGeneralRECO, outputCommands = SimGeneralRECO.outputCommands + _phase2_timing_extraCommands )
 
+_pp_on_XeXe_extraCommands = ['keep CrossingFramePlaybackInfoNew_mix_*_*','keep *_heavyIon_*_*']
+from Configuration.Eras.Modifier_pp_on_XeXe_2017_cff import pp_on_XeXe_2017
+pp_on_XeXe_2017.toModify( SimGeneralRAW, outputCommands = SimGeneralRAW.outputCommands + _pp_on_XeXe_extraCommands )
+pp_on_XeXe_2017.toModify( SimGeneralFEVTDEBUG, outputCommands = SimGeneralFEVTDEBUG.outputCommands + _pp_on_XeXe_extraCommands )
+pp_on_XeXe_2017.toModify( SimGeneralRECO, outputCommands = SimGeneralRECO.outputCommands + _pp_on_XeXe_extraCommands )
+pp_on_XeXe_2017.toModify( SimGeneralAOD, outputCommands = SimGeneralAOD.outputCommands + _pp_on_XeXe_extraCommands )

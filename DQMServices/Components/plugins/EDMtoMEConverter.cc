@@ -241,7 +241,7 @@ EDMtoMEConverter::EDMtoMEConverter(const edm::ParameterSet & iPSet) :
   verbosity %= 10;
 
   // get dqm info
-  dbe = 0;
+  dbe = nullptr;
   dbe = edm::Service<DQMStore>().operator->();
 
   // print out Parameter Set information being used
@@ -262,7 +262,7 @@ EDMtoMEConverter::EDMtoMEConverter(const edm::ParameterSet & iPSet) :
 
 } // end constructor
 
-EDMtoMEConverter::~EDMtoMEConverter() {}
+EDMtoMEConverter::~EDMtoMEConverter() = default;
 
 void EDMtoMEConverter::beginJob()
 {
@@ -381,8 +381,8 @@ EDMtoMEConverter::getData(T& iGetFrom)
   if (verbosity > 0) {
     std::vector<std::string> stags;
     dbe->getAllTags(stags);
-    for (unsigned int i = 0; i < stags.size(); ++i) {
-      std::cout << "Tags: " << stags[i] << std::endl;
+    for (auto const & stag : stags) {
+      std::cout << "Tags: " << stag << std::endl;
     }
   }
 }

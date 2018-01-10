@@ -33,16 +33,17 @@
 
 //#define EDM_ML_DEBUG
 
-HGCSD::HGCSD(G4String name, const DDCompactView & cpv,
+HGCSD::HGCSD(const std::string& name, const DDCompactView & cpv,
 	     const SensitiveDetectorCatalog & clg, 
 	     edm::ParameterSet const & p, const SimTrackManager* manager) : 
   CaloSD(name, cpv, clg, p, manager,
          (float)(p.getParameter<edm::ParameterSet>("HGCSD").getParameter<double>("TimeSliceUnit")),
          p.getParameter<edm::ParameterSet>("HGCSD").getParameter<bool>("IgnoreTrackID")), 
-  numberingScheme(0), mouseBite_(0), slopeMin_(0), levelT_(99) {
+  numberingScheme(nullptr), mouseBite_(nullptr), slopeMin_(0), levelT_(99) {
 
   edm::ParameterSet m_HGC = p.getParameter<edm::ParameterSet>("HGCSD");
   eminHit          = m_HGC.getParameter<double>("EminHit")*CLHEP::MeV;
+  storeAllG4Hits_  = m_HGC.getParameter<bool>("StoreAllG4Hits");
   rejectMB_        = m_HGC.getParameter<bool>("RejectMouseBite");
   waferRot_        = m_HGC.getParameter<bool>("RotatedWafer");
   angles_          = m_HGC.getUntrackedParameter<std::vector<double>>("WaferAngles");
@@ -51,7 +52,7 @@ HGCSD::HGCSD(G4String name, const DDCompactView & cpv,
   mouseBiteCut_    = waferSize*tan(30.0*CLHEP::deg) - mouseBite;
 
   //this is defined in the hgcsens.xml
-  G4String myName(this->nameOfSD());
+  G4String myName = name;
   myFwdSubdet_= ForwardSubdetector::ForwardEmpty;
   nameX = "HGCal";
   if (myName.find("HitsEE")!=std::string::npos) {
@@ -77,6 +78,8 @@ HGCSD::HGCSD(G4String name, const DDCompactView & cpv,
 #endif
   edm::LogInfo("HGCSim") << "HGCSD:: Threshold for storing hits: " << eminHit
 			 << " for " << nameX << " subdet " << myFwdSubdet_;
+  edm::LogInfo("HGCSim") << "Flag for storing individual Geant4 Hits "
+			 << storeAllG4Hits_;
   edm::LogInfo("HGCSim") << "Reject MosueBite Flag: " << rejectMB_ 
 			 << " Size of wafer " << waferSize << " Mouse Bite "
 			 << mouseBite << ":" << mouseBiteCut_ << " along "
@@ -92,7 +95,7 @@ bool HGCSD::ProcessHits(G4Step * aStep, G4TouchableHistory * ) {
 
   NaNTrap( aStep ) ;
   
-  if (aStep == NULL) {
+  if (aStep == nullptr) {
     return true;
   } else {
     double r = aStep->GetPreStepPoint()->GetPosition().perp();
@@ -112,8 +115,8 @@ bool HGCSD::ProcessHits(G4Step * aStep, G4TouchableHistory * ) {
     // Apply fiducial cuts
     if (r/z >= slopeMin_) {
       if (getStepInfo(aStep)) {
-	if (hitExists() == false && edepositEM+edepositHAD>0.) 
-	  currentHit = createNewHit();
+	if ((storeAllG4Hits_ || (hitExists() == false)) && 
+	    (edepositEM+edepositHAD>0.)) currentHit = createNewHit();
       }
     }
     return true;
@@ -128,9 +131,9 @@ double HGCSD::getEnergyDeposit(G4Step* aStep) {
   return destep;
 }
 
-uint32_t HGCSD::setDetUnitId(G4Step * aStep) { 
+uint32_t HGCSD::setDetUnitId(const G4Step * aStep) { 
 
-  G4StepPoint* preStepPoint = aStep->GetPreStepPoint(); 
+  const G4StepPoint* preStepPoint = aStep->GetPreStepPoint(); 
   const G4VTouchable* touch = preStepPoint->GetTouchable();
 
   //determine the exact position in global coordinates in the mass geometry 
@@ -144,44 +147,39 @@ uint32_t HGCSD::setDetUnitId(G4Step * aStep) {
   //get the det unit id with 
   ForwardSubdetector subdet = myFwdSubdet_;
 
-  int layer(0), module(0), cell(0);
-  if (m_mode == HGCalGeometryMode::Square) {
+  int layer, module, cell;
+  if (touch->GetHistoryDepth() == levelT_) {
     layer  = touch->GetReplicaNumber(0);
-    module = touch->GetReplicaNumber(1);
+    module = -1;
+    cell   = -1;
+#ifdef EDM_ML_DEBUG
+    edm::LogInfo("HGCSim") << "Depths: " << touch->GetHistoryDepth() 
+			   << " name " << touch->GetVolume(0)->GetName() 
+			   << " layer:module:cell " << layer << ":" 
+			   << module << ":" << cell << std::endl;
+#endif
   } else {
-    if (touch->GetHistoryDepth() == levelT_) {
-      layer  = touch->GetReplicaNumber(0);
-      module = -1;
-      cell   = -1;
-#ifdef EDM_ML_DEBUG
-      edm::LogInfo("HGCSim") << "Depths: " << touch->GetHistoryDepth() 
-			     << " name " << touch->GetVolume(0)->GetName() 
-			     << " layer:module:cell " << layer << ":" 
-			     << module << ":" << cell << std::endl;
-#endif
-    } else {
-      layer  = touch->GetReplicaNumber(2);
-      module = touch->GetReplicaNumber(1);
-      cell   = touch->GetReplicaNumber(0);
-    }
-#ifdef EDM_ML_DEBUG
-    edm::LogInfo("HGCSim") << "Depths: " << touch->GetHistoryDepth() <<" name "
-			   << touch->GetVolume(0)->GetName() 
-			   << ":" << touch->GetReplicaNumber(0) << "   "
-			   << touch->GetVolume(1)->GetName() 
-			   << ":" << touch->GetReplicaNumber(1) << "   "
-			   << touch->GetVolume(2)->GetName() 
-			   << ":" << touch->GetReplicaNumber(2) << "   "
-			   << " layer:module:cell " << layer << ":" << module 
-			   << ":" << cell <<" Material " << mat->GetName()<<":"
-			   << aStep->GetPreStepPoint()->GetMaterial()->GetRadlen()
-			   << std::endl;
-#endif
-    if (aStep->GetPreStepPoint()->GetMaterial()->GetRadlen() > 100000.) return 0;
+    layer  = touch->GetReplicaNumber(2);
+    module = touch->GetReplicaNumber(1);
+    cell   = touch->GetReplicaNumber(0);
   }
-
+#ifdef EDM_ML_DEBUG
+  edm::LogInfo("HGCSim") << "Depths: " << touch->GetHistoryDepth() <<" name "
+			 << touch->GetVolume(0)->GetName() 
+			 << ":" << touch->GetReplicaNumber(0) << "   "
+			 << touch->GetVolume(1)->GetName() 
+			 << ":" << touch->GetReplicaNumber(1) << "   "
+			 << touch->GetVolume(2)->GetName() 
+			 << ":" << touch->GetReplicaNumber(2) << "   "
+			 << " layer:module:cell " << layer << ":" << module 
+			 << ":" << cell <<" Material " << mat->GetName()<<":"
+			 << aStep->GetPreStepPoint()->GetMaterial()->GetRadlen();
+#endif
+  // The following statement should be examined later before elimination
+  if (aStep->GetPreStepPoint()->GetMaterial()->GetRadlen() > 100000.) return 0;
+  
   uint32_t id = setDetUnitId (subdet, layer, module, cell, iz, localpos);
-  if (rejectMB_ && m_mode != HGCalGeometryMode::Square && id != 0) {
+  if (rejectMB_ && id != 0) {
     int det, z, lay, wafer, type, ic;
     HGCalTestNumbering::unpackHexagonIndex(id, det, z, lay, wafer, type, ic);
 #ifdef EDM_ML_DEBUG
@@ -240,8 +238,8 @@ uint32_t HGCSD::setDetUnitId (ForwardSubdetector &subdet, int layer, int module,
   return id;
 }
 
-int HGCSD::setTrackID (G4Step* aStep) {
-  theTrack     = aStep->GetTrack();
+int HGCSD::setTrackID (const G4Step* aStep) {
+  const G4Track* theTrack    = aStep->GetTrack();
 
   double etrack = preStepPoint->GetKineticEnergy();
   TrackInformation * trkInfo = (TrackInformation *)(theTrack->GetUserInformation());

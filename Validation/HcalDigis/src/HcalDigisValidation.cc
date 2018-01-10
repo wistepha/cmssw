@@ -40,6 +40,8 @@ HcalDigisValidation::HcalDigisValidation(const edm::ParameterSet& iConfig) {
     dirName_ = iConfig.getUntrackedParameter<std::string > ("dirName", "HcalDigisV/HcalDigiTask");
     testNumber_= iConfig.getParameter<bool>("TestNumber");
     hep17_     = iConfig.getParameter<bool>("hep17");
+    HEPhase1_  = iConfig.getParameter<bool>("HEPhase1");
+    HBPhase1_  = iConfig.getParameter<bool>("HBPhase1");
 
     // register for data access
     if (iConfig.exists("simHits"))
@@ -67,7 +69,7 @@ HcalDigisValidation::HcalDigisValidation(const edm::ParameterSet& iConfig) {
 
     msm_ = new std::map<std::string, MonitorElement*>();
 
-    if (outputFile_.size() != 0) edm::LogInfo("OutputInfo") << " Hcal Digi Task histograms will be saved to '" << outputFile_.c_str() << "'";
+    if (!outputFile_.empty()) edm::LogInfo("OutputInfo") << " Hcal Digi Task histograms will be saved to '" << outputFile_.c_str() << "'";
     else edm::LogInfo("OutputInfo") << " Hcal Digi Task histograms will NOT be saved";
 
 }
@@ -257,7 +259,8 @@ void HcalDigisValidation::booking(DQMStore::IBooker &ib, const std::string bsubd
 
         // just 1D of all cells' amplitudes
         sprintf(histo, "HcalDigiTask_sum_all_amplitudes_%s", sub);
-        book1D(ib, histo, sumAmp);
+        if ((HBPhase1_ && bsubdet=="HB") || (HEPhase1_ && bsubdet=="HE")) book1D(ib, histo, digiAmpWide);
+	else book1D(ib, histo, digiAmp);
 
         sprintf(histo, "HcalDigiTask_number_of_amplitudes_above_10fC_%s", sub);
         book1D(ib, histo, ndigis);
@@ -273,7 +276,8 @@ void HcalDigisValidation::booking(DQMStore::IBooker &ib, const std::string bsubd
         }
 
         sprintf(histo, "HcalDigiTask_signal_amplitude_%s", sub);
-        book1D(ib, histo, digiAmp);
+        if ((HBPhase1_ && bsubdet=="HB") || (HEPhase1_ && bsubdet=="HE")) book1D(ib, histo, digiAmpWide);
+	else book1D(ib, histo, digiAmp);
 
         if(hep17_ && bsubdet=="HE"){
            sprintf(histo, "HcalDigiTask_signal_amplitude_HEP17");
@@ -282,7 +286,8 @@ void HcalDigisValidation::booking(DQMStore::IBooker &ib, const std::string bsubd
 	//
 	for (int depth = 1; depth <= maxDepth_[isubdet]; depth++) {
 	  sprintf(histo, "HcalDigiTask_signal_amplitude_depth%d_%s", depth, sub);
-	  book1D(ib, histo, digiAmp);
+	  if ((HBPhase1_ && bsubdet=="HB") || (HEPhase1_ && bsubdet=="HE")) book1D(ib, histo, digiAmpWide);
+	  else book1D(ib, histo, digiAmp);
            if(hep17_ && bsubdet=="HE"){
               sprintf(histo, "HcalDigiTask_signal_amplitude_depth%d_HEP17", depth);
 	      book1D(ib, histo, digiAmpWide);
@@ -290,7 +295,8 @@ void HcalDigisValidation::booking(DQMStore::IBooker &ib, const std::string bsubd
         }
 
         sprintf(histo, "HcalDigiTask_signal_amplitude_vs_bin_all_depths_%s", sub);
-        book2D(ib, histo, nbin, digiAmp);
+        if ((HBPhase1_ && bsubdet=="HB") || (HEPhase1_ && bsubdet=="HE")) book2D(ib, histo, nbin, digiAmpWide);
+	else book2D(ib, histo, nbin, digiAmp);
         if(hep17_ && bsubdet=="HE"){
            sprintf(histo, "HcalDigiTask_signal_amplitude_vs_bin_all_depths_HEP17");
            book2D(ib, histo, nbin, digiAmpWide);
@@ -415,7 +421,10 @@ void HcalDigisValidation::analyze(const edm::Event& iEvent, const edm::EventSetu
 
     if (subdet_ != "all") {
        noise_ = 0;
-       if (subdet_ == "HB") reco<HBHEDataFrame > (iEvent, iSetup, tok_hbhe_);
+       if (subdet_ == "HB"){
+	 reco<HBHEDataFrame > (iEvent, iSetup, tok_hbhe_);
+         reco<QIE11DataFrame>(iEvent, iSetup, tok_qie11_hbhe_);
+       }
        if (subdet_ == "HE"){
 	 reco<HBHEDataFrame > (iEvent, iSetup, tok_hbhe_);
          reco<QIE11DataFrame>(iEvent, iSetup, tok_qie11_hbhe_);
@@ -430,6 +439,7 @@ void HcalDigisValidation::analyze(const edm::Event& iEvent, const edm::EventSetu
             noise_ = 1;
     	    subdet_ = "HB";
             reco<HBHEDataFrame > (iEvent, iSetup, tok_hbhe_);
+            reco<QIE11DataFrame>(iEvent, iSetup, tok_qie11_hbhe_);
             subdet_ = "HE";
             reco<HBHEDataFrame > (iEvent, iSetup, tok_hbhe_);
             reco<QIE11DataFrame>(iEvent, iSetup, tok_qie11_hbhe_);
@@ -446,6 +456,7 @@ void HcalDigisValidation::analyze(const edm::Event& iEvent, const edm::EventSetu
 
         subdet_ = "HB";
         reco<HBHEDataFrame > (iEvent, iSetup, tok_hbhe_);
+        reco<QIE11DataFrame>(iEvent, iSetup, tok_qie11_hbhe_);
         subdet_ = "HE";
         reco<HBHEDataFrame > (iEvent, iSetup, tok_hbhe_);
         reco<QIE11DataFrame>(iEvent, iSetup, tok_qie11_hbhe_);
@@ -1257,7 +1268,7 @@ void HcalDigisValidation::fillPf(std::string name, double X, double Y) {
 }
 
 MonitorElement* HcalDigisValidation::monitor(std::string name) {
-    if (!msm_->count(name)) return NULL;
+    if (!msm_->count(name)) return nullptr;
     else return msm_->find(name)->second;
 }
 

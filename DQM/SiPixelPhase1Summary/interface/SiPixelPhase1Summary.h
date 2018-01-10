@@ -44,13 +44,13 @@
  class SiPixelPhase1Summary : public DQMEDHarvester {
     public:
        explicit SiPixelPhase1Summary(const edm::ParameterSet& conf);
-       ~SiPixelPhase1Summary();
+       ~SiPixelPhase1Summary() override;
 
        //       virtual void analyze(const edm::Event&, const edm::EventSetup&);
        //void dqmBeginRun(const edm::Run&, edm::EventSetup const&) ;
        //virtual void bookHistograms(DQMStore::IBooker &, edm::Run const &, edm::EventSetup const &) override;
  protected:
-       void beginRun(edm::Run const& run, edm::EventSetup const& eSetup);
+       void beginRun(edm::Run const& run, edm::EventSetup const& eSetup) override;
 
        void dqmEndLuminosityBlock(DQMStore::IBooker & iBooker, DQMStore::IGetter & iGetter, edm::LuminosityBlock const& lumiSeg, edm::EventSetup const& c) override;
        //(edm::LuminosityBlock const&, edm::EventSetup const&) override;
@@ -62,12 +62,13 @@
        bool runOnEndJob_;
 
     private:
-       enum trendPlots { offline,fpix,bpix };
+       enum trendPlots { offline,fpix,bpix,layer1,layer2,layer3,layer4,ring1,ring2 };
        edm::ParameterSet conf_;
        edm::InputTag src_;
        bool firstLumi;
 
        std::map<std::string,MonitorElement*> summaryMap_;
+       MonitorElement * reportSummary; //Float value of the average of the ins in the grand summary
 
        std::map<std::string,std::string> summaryPlotName_;
 

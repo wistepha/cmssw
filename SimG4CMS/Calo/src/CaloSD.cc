@@ -21,18 +21,15 @@
 
 //#define DebugLog
 
-CaloSD::CaloSD(G4String name, const DDCompactView & cpv,
+CaloSD::CaloSD(const std::string& name, const DDCompactView & cpv,
         const SensitiveDetectorCatalog & clg,
         edm::ParameterSet const & p, const SimTrackManager* manager,
         float timeSliceUnit, bool ignoreTkID) : 
   SensitiveCaloDetector(name, cpv, clg, p),
-  G4VGFlashSensitiveDetector(), theTrack(0), preStepPoint(0), eminHit(0), 
-  eminHitD(0), m_trackManager(manager), currentHit(0), runInit(false),
-  timeSlice(timeSliceUnit), ignoreTrackID(ignoreTkID), hcID(-1), theHC(0), 
-  meanResponse(0) {
-  //Add Hcal Sentitive Detector Names
-
-  collectionName.insert(name);
+  G4VGFlashSensitiveDetector(), theTrack(nullptr), preStepPoint(nullptr), eminHit(0), 
+  eminHitD(0), m_trackManager(manager), currentHit(nullptr), runInit(false),
+  timeSlice(timeSliceUnit), ignoreTrackID(ignoreTkID), hcID(-1), theHC(nullptr), 
+  meanResponse(nullptr) {
 
   //Parameters
   edm::ParameterSet m_CaloSD = p.getParameter<edm::ParameterSet>("CaloSD");
@@ -64,17 +61,6 @@ CaloSD::CaloSD(G4String name, const DDCompactView & cpv,
       break;
     }
   }
-#ifdef DebugLog
-  LogDebug("CaloSim") << "***************************************************" 
-                      << "\n"
-                      << "*                                                 *" 
-                      << "\n"
-                      << "* Constructing a CaloSD  with name " << GetName()
-                      << "\n"
-                      << "*                                                 *" 
-                      << "\n"
-                      << "***************************************************";
-#endif
   slave      = new CaloSlaveSD(name);
   currentID  = CaloHitID(timeSlice, ignoreTrackID);
   previousID = CaloHitID(timeSlice, ignoreTrackID);
@@ -83,18 +69,6 @@ CaloSD::CaloSD(G4String name, const DDCompactView & cpv,
   cleanIndex = 0;
   totalHits = 0;
   forceSave = false;
-
-  //
-  // Now attach the right detectors (LogicalVolumes) to me
-  //
-  const std::vector<std::string>& lvNames = clg.logicalNames(name);
-  this->Register();
-  for (std::vector<std::string>::const_iterator it=lvNames.begin(); it !=lvNames.end(); ++it) {
-    this->AssignSD(*it);
-#ifdef DebugLog
-    LogDebug("CaloSim") << "CaloSD : Assigns SD to LV " << (*it);
-#endif
-  }
 
   edm::LogInfo("CaloSim") << "CaloSD: Minimum energy of track for saving it " 
                           << energyCut/GeV  << " GeV" << "\n"
@@ -111,16 +85,16 @@ CaloSD::CaloSD(G4String name, const DDCompactView & cpv,
 }
 
 CaloSD::~CaloSD() { 
-  if (slave)           delete slave; 
-  if (theHC)           delete theHC;
-  if (meanResponse)    delete meanResponse;
+  delete slave; 
+  delete theHC;
+  delete meanResponse;
 }
 
 bool CaloSD::ProcessHits(G4Step * aStep, G4TouchableHistory * ) {
   
   NaNTrap( aStep ) ;
   
-  if (aStep == NULL) {
+  if (aStep == nullptr) {
     return true;
   } else {
     if (getStepInfo(aStep)) {
@@ -133,7 +107,7 @@ bool CaloSD::ProcessHits(G4Step * aStep, G4TouchableHistory * ) {
 
 bool CaloSD::ProcessHits(G4GFlashSpot* aSpot, G4TouchableHistory*) { 
 
-  if (aSpot != NULL) {   
+  if (aSpot != nullptr) {   
     theTrack = const_cast<G4Track *>(aSpot->GetOriginatorTrack()->GetPrimaryTrack());
     G4int particleCode = theTrack->GetDefinition()->GetPDGEncoding();
     
@@ -242,8 +216,8 @@ void CaloSD::PrintAll() {
   theHC->PrintAllHits();
 } 
 
-void CaloSD::fillHits(edm::PCaloHitContainer& c, std::string n) {
-  if (slave->name() == n) c=slave->hits();
+void CaloSD::fillHits(edm::PCaloHitContainer& cc, const std::string& hname) {
+  if (slave->name() == hname) { cc=slave->hits(); }
   slave->Clean();
 }
 
@@ -322,9 +296,9 @@ G4bool CaloSD::hitExists() {
   
   // Reset entry point for new primary
   posGlobal = preStepPoint->GetPosition();
-  if (currentID.trackID() != previousID.trackID()) 
-    resetForNewPrimary(preStepPoint->GetPosition(), preStepPoint->GetKineticEnergy());
-  
+  if (currentID.trackID() != previousID.trackID()) { 
+    resetForNewPrimary(posGlobal, preStepPoint->GetKineticEnergy());
+  }
   return checkHit();
 }
 
@@ -382,7 +356,7 @@ CaloG4Hit* CaloSD::createNewHit() {
 #endif  
   
   CaloG4Hit* aHit;
-  if (reusehit.size() > 0) {
+  if (!reusehit.empty()) {
     aHit = reusehit[0];
     aHit->setEM(0.);
     aHit->setHadr(0.);
@@ -421,7 +395,7 @@ CaloG4Hit* CaloSD::createNewHit() {
     edm::LogInfo("CaloSim") << "CaloSD : TrackwithHistory pointer for " 
 			    << currentID.trackID() << " is " << trkh;
 #endif
-    if (trkh != NULL) {
+    if (trkh != nullptr) {
       etrack = sqrt(trkh->momentum().Mag2());
       if (etrack >= energyCut) {
         trkh->save();
@@ -462,7 +436,7 @@ void CaloSD::resetForNewPrimary(const G4ThreeVector& point, double energy) {
 #endif
 }
 
-double CaloSD::getAttenuation(G4Step* aStep, double birk1, double birk2, double birk3) {
+double CaloSD::getAttenuation(const G4Step* aStep, double birk1, double birk2, double birk3) {
   double weight = 1.;
   double charge = aStep->GetPreStepPoint()->GetCharge();
 
@@ -513,7 +487,7 @@ void CaloSD::update(const EndOfTrack * trk) {
   if (trkI) lastTrackID = trkI->getIDonCaloSurface();
   if (id == lastTrackID) {
     const TrackContainer * trksForThisEvent = m_trackManager->trackContainer();
-    if (trksForThisEvent != NULL) {
+    if (trksForThisEvent != nullptr) {
       int it = (int)(trksForThisEvent->size()) - 1;
       if (it >= 0) {
         TrackWithHistory * trkH = (*trksForThisEvent)[it];
@@ -571,7 +545,7 @@ void CaloSD::clearHits() {
 
 void CaloSD::initRun() {}
 
-int CaloSD::getTrackID(G4Track* aTrack) {
+int CaloSD::getTrackID(const G4Track* aTrack) {
   int primaryID = 0;
   forceSave = false;
   TrackInformation* trkInfo=(TrackInformation *)(aTrack->GetUserInformation());
@@ -592,7 +566,7 @@ int CaloSD::getTrackID(G4Track* aTrack) {
   return primaryID;
 }
 
-uint16_t CaloSD::getDepth(G4Step*) { return 0; }
+uint16_t CaloSD::getDepth(const G4Step*) { return 0; }
 
 bool CaloSD::filterHit(CaloG4Hit* hit, double time) {
   double emin(eminHit);
@@ -604,7 +578,7 @@ bool CaloSD::filterHit(CaloG4Hit* hit, double time) {
   return ((time <= tmaxHit) && (hit->getEnergyDeposit() > emin));
 }
 
-double CaloSD::getResponseWt(G4Track* aTrack) {
+double CaloSD::getResponseWt(const G4Track* aTrack) {
   if (meanResponse) {
     TrackInformation * trkInfo = (TrackInformation *)(aTrack->GetUserInformation());
     return meanResponse->getWeight(trkInfo->genParticlePID(), trkInfo->genParticleP());
@@ -615,7 +589,7 @@ double CaloSD::getResponseWt(G4Track* aTrack) {
 
 void CaloSD::storeHit(CaloG4Hit* hit) {
   if (previousID.trackID()<0) return;
-  if (hit == 0) {
+  if (hit == nullptr) {
     edm::LogWarning("CaloSim") << "CaloSD: hit to be stored is NULL !!";
     return;
   }
@@ -693,7 +667,7 @@ void CaloSD::cleanHitCollection() {
 #endif
   
   selIndex.reserve(theHC->entries()-cleanIndex);
-  if ( reusehit.size() == 0 ) reusehit.reserve(theHC->entries()-cleanIndex); 
+  if ( reusehit.empty() ) reusehit.reserve(theHC->entries()-cleanIndex); 
 
   // if no map used, merge before hits to have the save situation as a map
   if ( !useMap ) {

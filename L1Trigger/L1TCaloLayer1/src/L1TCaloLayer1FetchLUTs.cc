@@ -10,7 +10,7 @@
 
 #include "L1Trigger/L1TCalorimeter/interface/CaloParamsHelper.h"
 #include "CondFormats/L1TObjects/interface/CaloParams.h"
-#include "CondFormats/DataRecord/interface/L1TCaloStage2ParamsRcd.h"
+#include "CondFormats/DataRecord/interface/L1TCaloParamsRcd.h"
 
 #include "CalibFormats/CaloTPG/interface/CaloTPGTranscoder.h"
 #include "CalibFormats/CaloTPG/interface/CaloTPGRecord.h"
@@ -37,7 +37,8 @@ bool L1TCaloLayer1FetchLUTs(const edm::EventSetup& iSetup,
 			    bool useCalib,
 			    bool useECALLUT,
 			    bool useHCALLUT,
-                            bool useHFLUT) {
+                            bool useHFLUT,
+                            int fwVersion) {
 
   int hfValid = 1;
   edm::ESHandle<HcalTrigTowerGeometry> pG;
@@ -49,7 +50,7 @@ bool L1TCaloLayer1FetchLUTs(const edm::EventSetup& iSetup,
 
   // CaloParams contains all persisted parameters for Layer 1
   edm::ESHandle<l1t::CaloParams> paramsHandle;
-  iSetup.get<L1TCaloStage2ParamsRcd>().get(paramsHandle);
+  iSetup.get<L1TCaloParamsRcd>().get(paramsHandle);
   if ( paramsHandle.product() == nullptr ) {
     edm::LogError("L1TCaloLayer1FetchLUTs") << "Missing CaloParams object! Check Global Tag, etc.";
     return false;
@@ -70,8 +71,15 @@ bool L1TCaloLayer1FetchLUTs(const edm::EventSetup& iSetup,
   //   So, index = phiBin*etBin*28+etBin*28+ieta
   auto ecalScaleETBins = caloParams.layer1ECalScaleETBins();
   auto ecalScalePhiBins = caloParams.layer1ECalScalePhiBins();
-  auto epos = std::max_element(ecalScalePhiBins.begin(), ecalScalePhiBins.end());
-  auto numEcalPhiBins = ecalScalePhiBins[std::distance(ecalScalePhiBins.begin(), epos)]+1;
+  if ( ecalScalePhiBins.empty() ) {
+    // Backwards-compatibility (no phi binning)
+    ecalScalePhiBins.resize(36, 0);
+  }
+  else if ( ecalScalePhiBins.size() % 36 != 0 ) {
+    edm::LogError("L1TCaloLayer1FetchLUTs") << "caloParams.layer1ECalScaleETBins().size() is not multiple of 36 !!";
+    return false;
+  }
+  size_t numEcalPhiBins = (*std::max_element(ecalScalePhiBins.begin(), ecalScalePhiBins.end())) + 1;
   auto ecalSF = caloParams.layer1ECalScaleFactors();
   if ( ecalSF.size() != ecalScaleETBins.size()*numEcalPhiBins*28 ) {
     edm::LogError("L1TCaloLayer1FetchLUTs") << "caloParams.layer1ECalScaleFactors().size() != caloParams.layer1ECalScaleETBins().size()*numEcalPhiBins*28 !!";
@@ -79,8 +87,14 @@ bool L1TCaloLayer1FetchLUTs(const edm::EventSetup& iSetup,
   }
   auto hcalScaleETBins = caloParams.layer1HCalScaleETBins();
   auto hcalScalePhiBins = caloParams.layer1HCalScalePhiBins();
-  auto hpos = std::max_element(hcalScalePhiBins.begin(), hcalScalePhiBins.end());
-  auto numHcalPhiBins = hcalScalePhiBins[std::distance(hcalScalePhiBins.begin(), hpos)]+1;
+  if ( hcalScalePhiBins.empty() ) {
+    hcalScalePhiBins.resize(36, 0);
+  }
+  else if ( hcalScalePhiBins.size() % 36 != 0 ) {
+    edm::LogError("L1TCaloLayer1FetchLUTs") << "caloParams.layer1HCalScaleETBins().size() is not multiple of 36 !!";
+    return false;
+  }
+  size_t numHcalPhiBins = (*std::max_element(hcalScalePhiBins.begin(), hcalScalePhiBins.end())) + 1;
   auto hcalSF = caloParams.layer1HCalScaleFactors();
   if ( hcalSF.size() != hcalScaleETBins.size()*numHcalPhiBins*28 ) {
     edm::LogError("L1TCaloLayer1FetchLUTs") << "caloParams.layer1HCalScaleFactors().size() != caloParams.layer1HCalScaleETBins().size()*numHcalPhiBins*28 !!";
@@ -94,8 +108,14 @@ bool L1TCaloLayer1FetchLUTs(const edm::EventSetup& iSetup,
   //   So, index = phiBin*etBin*12+etBin*12+ieta
   auto hfScaleETBins = caloParams.layer1HFScaleETBins();
   auto hfScalePhiBins = caloParams.layer1HFScalePhiBins();
-  auto hfpos = std::max_element(hfScalePhiBins.begin(), hfScalePhiBins.end());
-  auto numHFPhiBins = hfScalePhiBins[std::distance(hfScalePhiBins.begin(), hfpos)]+1;
+  if ( hfScalePhiBins.empty() ) {
+    hfScalePhiBins.resize(36, 0);
+  }
+  else if ( hfScalePhiBins.size() % 36 != 0 ) {
+    edm::LogError("L1TCaloLayer1FetchLUTs") << "caloParams.layer1HFScaleETBins().size() is not multiple of 36 !!";
+    return false;
+  }
+  size_t numHFPhiBins = (*std::max_element(hfScalePhiBins.begin(), hfScalePhiBins.end())) + 1;
   auto hfSF = caloParams.layer1HFScaleFactors();
   if ( hfSF.size() != hfScaleETBins.size()*numHFPhiBins*12 ) {
     edm::LogError("L1TCaloLayer1FetchLUTs") << "caloParams.layer1HFScaleFactors().size() != caloParams.layer1HFScaleETBins().size()*numHFPhiBins*12 !!";
@@ -103,7 +123,7 @@ bool L1TCaloLayer1FetchLUTs(const edm::EventSetup& iSetup,
   }
 
   // Sanity check scale factors exist
-  if ( useCalib && (ecalSF.size()==0 || hcalSF.size()==0 || hfSF.size()==0) ) {
+  if ( useCalib && (ecalSF.empty() || hcalSF.empty() || hfSF.empty()) ) {
     edm::LogError("L1TCaloLayer1FetchLUTs") << "Layer 1 calibrations requested (useCalib = True) but there are missing scale factors in CaloParams!  Please check conditions setup.";
     return false;
   }
@@ -152,9 +172,18 @@ bool L1TCaloLayer1FetchLUTs(const edm::EventSetup& iSetup,
             if (useLSB) calibratedECalInput /= caloLSB;
 
 	    value = calibratedECalInput;
-	    if(value > 0xFF) {
-	      value = 0xFF;
-	    }
+            if ( fwVersion > 2 ) {
+              // Saturate if either decompressed value is over 127.5 GeV or input saturated
+              // (meaningless for ecal, since ecalLSB == caloLSB)
+              if(value > 0xFF || ecalInput == 0xFF) {
+                value = 0xFF;
+              }
+            }
+            else {
+              if(value > 0xFF) {
+                value = 0xFF;
+              }
+            }
 	  }
 	  if(value == 0) {
 	    value = (1 << 11);
@@ -207,8 +236,16 @@ bool L1TCaloLayer1FetchLUTs(const edm::EventSetup& iSetup,
             if(useLSB) calibratedHcalInput /= caloLSB;
 
             value = calibratedHcalInput;
-            if(value > 0xFF) {
-              value = 0xFF;
+            if ( fwVersion > 2 ) {
+              // Saturate if either decompressed value is over 127.5 GeV or input saturated
+              if(value > 0xFF || hcalInput == 0xFF) {
+                value = 0xFF;
+              }
+            }
+            else {
+              if(value > 0xFF) {
+                value = 0xFF;
+              }
             }
           }
           if(value == 0) {
@@ -237,12 +274,12 @@ bool L1TCaloLayer1FetchLUTs(const edm::EventSetup& iSetup,
         auto index = std::distance(hfScalePhiBins.begin(),pos);
         if (index<18) {
           caloEta*=-1;
-          iPhi = index*4+1;
+          iPhi = index*4-1;
         }
         else {
-          iPhi = (index-18)*4+1;
+          iPhi = (index-18)*4-1;
         }
-        if (std::abs(caloEta) == 41 && iPhi<3) iPhi = 3;
+        if (iPhi < 0) iPhi = 71;
       }
       for(uint32_t etCode = 0; etCode < nEtBins; etCode++) {
         uint32_t value = etCode;
@@ -263,9 +300,27 @@ bool L1TCaloLayer1FetchLUTs(const edm::EventSetup& iSetup,
           if(useCalib) calibratedHFInput *= hfSF.at(phiBin*hfScalePhiBins.size()*12+etBin*12+etaBin);
           if(useLSB) calibratedHFInput /= caloLSB;
 
-          value = calibratedHFInput;
-          if(value > 0xFF) {
-            value = 0xFF;
+          if ( fwVersion > 2 ) {
+            uint32_t absCaloEta = std::abs(caloEta);
+            if(absCaloEta > 29 && absCaloEta < 40) {
+              // Divide by two (since two duplicate towers are sent)
+              calibratedHFInput *= 0.5;
+            }
+            else if(absCaloEta == 40 || absCaloEta == 41) {
+              // Divide by four
+              calibratedHFInput *= 0.25;
+            }
+            value = calibratedHFInput;
+            // Saturate if either decompressed value is over 127.5 GeV or input saturated
+            if(value >= 0xFF || etCode == 0xFF) {
+              value = 0x1FD;
+            }
+          }
+          else {
+            value = calibratedHFInput;
+            if(value > 0xFF) {
+              value = 0xFF;
+            }
           }
         }
         hfLUT[phiBin][etaBin][etCode] = value;

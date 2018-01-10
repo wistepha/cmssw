@@ -128,28 +128,28 @@ namespace HGCalTriggerBackend{
             }
 
             // setProduces
-            virtual void setProduces(edm::stream::EDProducer<>& prod) const override final
+            void setProduces(edm::stream::EDProducer<>& prod) const final
             {
                 prod.produces<l1t::HGCalClusterBxCollection>(name());
             }
 
             // putInEvent
-            virtual void putInEvent(edm::Event& evt) override final
+            void putInEvent(edm::Event& evt) final
             {
                 evt.put(std::move(cluster_product_),name());
             }
 
             //reset
-            virtual void reset() override final 
+            void reset() final 
             {
                 cluster_product_.reset( new l1t::HGCalClusterBxCollection );
             }
 
             // run, actual algorithm
-            virtual void run( const l1t::HGCFETriggerDigiCollection & coll,
+            void run( const l1t::HGCFETriggerDigiCollection & coll,
                            const edm::EventSetup& es,
                            edm::Event&evt
-                    )
+                    ) override
             {
                 //0.5. Get Digis, construct a map, detid -> energy
                 
@@ -261,19 +261,9 @@ namespace HGCalTriggerBackend{
 
                             const HGCalDetId tcellId(triggercell.detId());
                             // calbration
-                            int subdet = tcellId.subdetId();
-                            int cellThickness = 0;
-                            
-                            if( subdet == HGCEE ){ 
-                                cellThickness = (hgceeTopoHandle_)->dddConstants().waferTypeL((unsigned int)tcellId.wafer() );
-                            }else if( subdet == HGCHEF ){
-                                cellThickness = (hgchefTopoHandle_)->dddConstants().waferTypeL((unsigned int)tcellId.wafer() );
-                            }else if( subdet == HGCHEB ){
-                                edm::LogWarning("DataNotFound") << "ATTENTION: the BH trgCells are not yet implemented !! ";
-                            }
 
                             l1t::HGCalTriggerCell calibratedtriggercell(triggercell);
-                            calibration_.calibrateInGeV(calibratedtriggercell, cellThickness); 
+                            calibration_.calibrateInGeV(calibratedtriggercell); 
                             //uint32_t digiEnergy = data.payload; 
                             //auto digiEnergy=triggercell.p4().E();  
                             // using calibrated energy instead

@@ -30,7 +30,6 @@ hiLowPtQuadStepSeedLayers.FPix.skipClusters = cms.InputTag('hiLowPtQuadStepClust
 from RecoTracker.TkTrackingRegions.globalTrackingRegionWithVertices_cfi import globalTrackingRegionWithVertices as _globalTrackingRegionWithVertices
 from RecoTracker.TkHitPairs.hitPairEDProducer_cfi import hitPairEDProducer as _hitPairEDProducer
 from RecoPixelVertexing.PixelTriplets.pixelTripletHLTEDProducer_cfi import pixelTripletHLTEDProducer as _pixelTripletHLTEDProducer
-from RecoPixelVertexing.PixelTriplets.pixelQuadrupletEDProducer_cfi import pixelQuadrupletEDProducer as _pixelQuadrupletEDProducer
 from RecoPixelVertexing.PixelLowPtUtilities.ClusterShapeHitFilterESProducer_cfi import *
 from RecoPixelVertexing.PixelLowPtUtilities.trackCleaner_cfi import *
 from RecoPixelVertexing.PixelTrackFitting.pixelFitterByHelixProjections_cfi import *
@@ -46,7 +45,7 @@ hiLowPtQuadStepTrackingRegions = _globalTrackingRegionWithVertices.clone(RegionP
     nSigmaZ = 4.0,
     sigmaZVertex = 4.0,
     fixedError = 0.5,
-    VertexCollection = "hiSelectedVertex",
+    VertexCollection = "hiSelectedPixelVertex",
     ptMin = 0.3,#0.2 for pp
     useFoundVertices = True,
     originRadius = 0.02 #0.02 for pp

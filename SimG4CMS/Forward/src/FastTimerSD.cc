@@ -37,47 +37,23 @@
 
 //#define EDM_ML_DEBUG
 //-------------------------------------------------------------------
-FastTimerSD::FastTimerSD(std::string name, const DDCompactView & cpv,
+FastTimerSD::FastTimerSD(const std::string& name, const DDCompactView & cpv,
 			 const SensitiveDetectorCatalog & clg, 
 			 edm::ParameterSet const & p, 
 			 const SimTrackManager* manager) :
-  SensitiveTkDetector(name, cpv, clg, p), ftcons(0), name(name),
-  hcID(-1), theHC(0), theManager(manager), currentHit(0), theTrack(0), 
-  currentPV(0), unitID(0),  previousUnitID(0), preStepPoint(0), 
-  postStepPoint(0), eventno(0) {
-    
-  //Add FastTimer Sentitive Detector Name
-  collectionName.insert(name);
-    
+  SensitiveTkDetector(name, cpv, clg, p), ftcons(nullptr),
+  hcID(-1), theHC(nullptr), theManager(manager), currentHit(nullptr), theTrack(nullptr), 
+  currentPV(nullptr), unitID(0),  previousUnitID(0), preStepPoint(nullptr), 
+  postStepPoint(nullptr), eventno(0) {
     
   //Parameters
   edm::ParameterSet m_p = p.getParameter<edm::ParameterSet>("FastTimerSD");
   int verbn = m_p.getUntrackedParameter<int>("Verbosity");
     
   SetVerboseLevel(verbn);
-#ifdef EDM_ML_DEBUG
-  std::cout << "*******************************************************\n"
-	    << "*                                                     *\n"
-	    << "* Constructing a FastTimerSD  with name " << name << "\n"
-	    << "*                                                     *\n"
-	    << "*******************************************************\n";
-#endif    
     
   slave  = new TrackingSlaveSD(name);
-    
-  //
-  // attach detectors (LogicalVolumes)
-  //
-  std::vector<std::string> lvNames = clg.logicalNames(name);
-
-  this->Register();
-
-  for (std::vector<std::string>::iterator it=lvNames.begin();  
-       it !=lvNames.end(); it++) {
-    this->AssignSD(*it);
-    edm::LogInfo("FastTimerSim") << "FastTimerSD : Assigns SD to LV " << (*it);
-  }
-    
+        
   std::string attribute = "ReadOutName";
   DDSpecificsMatchesValueFilter filter{DDValue(attribute,name,0)};
   DDFilteredView fv(cpv,filter);
@@ -90,12 +66,11 @@ FastTimerSD::FastTimerSD(std::string name, const DDCompactView & cpv,
 			       << name << " of type " << type_;
 }
 
-
 FastTimerSD::~FastTimerSD() { 
   if (slave)  delete slave; 
 }
 
-double FastTimerSD::getEnergyDeposit(G4Step* aStep) {
+double FastTimerSD::getEnergyDeposit(const G4Step* aStep) {
   return aStep->GetTotalEnergyDeposit();
 }
 
@@ -113,10 +88,9 @@ void FastTimerSD::Initialize(G4HCofThisEvent * HCE) {
   primID = -2;
 }
 
-
 bool FastTimerSD::ProcessHits(G4Step * aStep, G4TouchableHistory * ) {
 
-  if (aStep == NULL) {
+  if (aStep == nullptr) {
     return true;
   } else {
     GetStepInfo(aStep);
@@ -181,7 +155,7 @@ void FastTimerSD::GetStepInfo(G4Step* aStep) {
   Z  = hitPoint.z();
 }
 
-uint32_t FastTimerSD::setDetUnitId(G4Step * aStep) { 
+uint32_t FastTimerSD::setDetUnitId(const G4Step * aStep) { 
 
   //Find the depth segment
   const G4VTouchable* touch = aStep->GetPreStepPoint()->GetTouchable();
@@ -252,7 +226,7 @@ void FastTimerSD::ResetForNewPrimary() {
 void FastTimerSD::StoreHit(BscG4Hit* hit){
 
   if (primID<0) return;
-  if (hit == 0) {
+  if (hit == nullptr) {
     edm::LogWarning("FastTimerSim") << "FastTimerSD: hit to be stored is NULL !!";
   } else {
     theHC->insert( hit );
@@ -394,8 +368,8 @@ void FastTimerSD::PrintAll() {
   theHC->PrintAllHits();
 } 
 
-void FastTimerSD::fillHits(edm::PSimHitContainer& c, std::string n) {
-  if (slave->name() == n) c=slave->hits();
+void FastTimerSD::fillHits(edm::PSimHitContainer& cc, const std::string& hname) {
+  if (slave->name() == hname) { cc=slave->hits(); }
 }
 
 void FastTimerSD::update(const BeginOfJob * job) {
@@ -436,12 +410,6 @@ void FastTimerSD::update (const ::EndOfEvent*) {}
 
 void FastTimerSD::clearHits(){
   slave->Initialize();
-}
-
-std::vector<std::string> FastTimerSD::getNames(){
-  std::vector<std::string> temp;
-  temp.push_back(slave->name());
-  return temp;
 }
 
 std::vector<double> FastTimerSD::getDDDArray(const std::string & str, 

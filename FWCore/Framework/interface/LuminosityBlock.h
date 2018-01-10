@@ -23,6 +23,7 @@ For its usage, see "FWCore/Framework/interface/PrincipalGetAdapter.h"
 #include "FWCore/Framework/interface/Frameworkfwd.h"
 #include "FWCore/Framework/interface/PrincipalGetAdapter.h"
 #include "FWCore/Utilities/interface/EDGetToken.h"
+#include "FWCore/Utilities/interface/EDPutToken.h"
 #include "FWCore/Utilities/interface/ProductKindOfType.h"
 #include "FWCore/Utilities/interface/LuminosityBlockIndex.h"
 #include "FWCore/Utilities/interface/propagate_const.h"
@@ -46,10 +47,10 @@ namespace edm {
   public:
     LuminosityBlock(LuminosityBlockPrincipal const& lbp, ModuleDescription const& md,
                     ModuleCallingContext const*);
-    ~LuminosityBlock();
+    ~LuminosityBlock() override;
 
     // AUX functions are defined in LuminosityBlockBase
-    LuminosityBlockAuxiliary const& luminosityBlockAuxiliary() const {return aux_;}
+    LuminosityBlockAuxiliary const& luminosityBlockAuxiliary() const override {return aux_;}
 
     /**\return Reusable index which can be used to separate data for different simultaneous LuminosityBlocks.
      */
@@ -69,6 +70,8 @@ namespace edm {
     void setConsumer(EDConsumerBase const* iConsumer);
 
     void setSharedResourcesAcquirer( SharedResourcesAcquirer* iResourceAcquirer);
+
+    void setProducer(ProducerBase const* iProducer);
 
     template <typename PROD>
     bool
@@ -113,6 +116,14 @@ namespace edm {
     void
     put(std::unique_ptr<PROD> product, std::string const& productInstanceName);
 
+    template<typename PROD>
+    void
+    put(EDPutToken token, std::unique_ptr<PROD> product);
+    
+    template<typename PROD>
+    void
+    put(EDPutTokenT<PROD> token, std::unique_ptr<PROD> product);
+
     Provenance
     getProvenance(BranchID const& theID) const;
 
@@ -133,9 +144,13 @@ namespace edm {
     luminosityBlockPrincipal() const;
 
     // Override version from LuminosityBlockBase class
-    virtual BasicHandle getByLabelImpl(std::type_info const& iWrapperType, std::type_info const& iProductType, InputTag const& iTag) const;
+    BasicHandle getByLabelImpl(std::type_info const& iWrapperType, std::type_info const& iProductType, InputTag const& iTag) const override;
 
-    typedef std::vector<std::pair<edm::propagate_const<std::unique_ptr<WrapperBase>>, BranchDescription const*>> ProductPtrVec;
+    template<typename PROD>
+    void
+    putImpl(EDPutToken::value_type token, std::unique_ptr<PROD> product);
+
+    typedef std::vector<edm::propagate_const<std::unique_ptr<WrapperBase>>> ProductPtrVec;
     ProductPtrVec& putProducts() {return putProducts_;}
     ProductPtrVec const& putProducts() const {return putProducts_;}
 
@@ -143,7 +158,6 @@ namespace edm {
     // this PrincipalGetAdapter. The friendships required seems gross, but any
     // alternative is not great either.  Putting it into the
     // public interface is asking for trouble
-    friend class InputSource;
     friend class RawInputSource;
     friend class ProducerBase;
     template<typename T> friend class stream::ProducingModuleAdaptorBase;
@@ -162,27 +176,60 @@ namespace edm {
 
   template <typename PROD>
   void
-  LuminosityBlock::put(std::unique_ptr<PROD> product, std::string const& productInstanceName) {
-    if(product.get() == nullptr) {                // null pointer is illegal
-      TypeID typeID(typeid(PROD));
-      principal_get_adapter_detail::throwOnPutOfNullProduct("LuminosityBlock", typeID, productInstanceName);
-    }
-
+  LuminosityBlock::putImpl(EDPutToken::value_type index,std::unique_ptr<PROD> product) {
     // The following will call post_insert if T has such a function,
     // and do nothing if T has no such function.
     std::conditional_t<detail::has_postinsert<PROD>::value,
-                       DoPostInsert<PROD>,
-                       DoNotPostInsert<PROD>> maybe_inserter;
+    DoPostInsert<PROD>,
+    DoNotPostInsert<PROD>> maybe_inserter;
     maybe_inserter(product.get());
-
-    BranchDescription const& desc =
-      provRecorder_.getBranchDescription(TypeID(*product), productInstanceName);
-
+    
+    assert(index < putProducts().size());
+    
     std::unique_ptr<Wrapper<PROD> > wp(new Wrapper<PROD>(std::move(product)));
-    putProducts().emplace_back(std::move(wp), &desc);
+    putProducts()[index]=std::move(wp);
+  }
 
-    // product.release(); // The object has been copied into the Wrapper.
-    // The old copy must be deleted, so we cannot release ownership.
+  template <typename PROD>
+  void
+  LuminosityBlock::put(std::unique_ptr<PROD> product, std::string const& productInstanceName) {
+    if(unlikely(product.get() == nullptr)) {                // null pointer is illegal
+      TypeID typeID(typeid(PROD));
+      principal_get_adapter_detail::throwOnPutOfNullProduct("LuminosityBlock", typeID, productInstanceName);
+    }
+    auto index =
+    provRecorder_.getPutTokenIndex(TypeID(*product), productInstanceName);
+    putImpl(index, std::move(product));
+  }
+
+  template<typename PROD>
+  void
+  LuminosityBlock::put(EDPutTokenT<PROD> token, std::unique_ptr<PROD> product) {
+    if(unlikely(product.get() == 0)) {                // null pointer is illegal
+      TypeID typeID(typeid(PROD));
+      principal_get_adapter_detail::throwOnPutOfNullProduct("Event", typeID, provRecorder_.productInstanceLabel(token));
+    }
+    if(unlikely(token.isUninitialized())) {
+      principal_get_adapter_detail::throwOnPutOfUninitializedToken("Event", typeid(PROD));
+    }
+    putImpl(token.index(),std::move(product));
+  }
+  
+  template<typename PROD>
+  void
+  LuminosityBlock::put(EDPutToken token, std::unique_ptr<PROD> product) {
+    if(unlikely(product.get() == 0)) {                // null pointer is illegal
+      TypeID typeID(typeid(PROD));
+      principal_get_adapter_detail::throwOnPutOfNullProduct("Event", typeID, provRecorder_.productInstanceLabel(token));
+    }
+    if(unlikely(token.isUninitialized())) {
+      principal_get_adapter_detail::throwOnPutOfUninitializedToken("Event", typeid(PROD));
+    }
+    if(unlikely(provRecorder_.getTypeIDForPutTokenIndex(token.index()) != TypeID{typeid(PROD)})) {
+      principal_get_adapter_detail::throwOnPutOfWrongType(typeid(PROD), provRecorder_.getTypeIDForPutTokenIndex(token.index()));
+    }
+    
+    putImpl(token.index(),std::move(product));
   }
 
   template<typename PROD>
@@ -264,5 +311,33 @@ namespace edm {
     return provRecorder_.getManyByType(results, moduleCallingContext_);
   }
 
+  // Free functions to retrieve a collection from the LuminosityBlock.
+  // Will throw an exception if the collection is not available.
+
+  template <typename T>
+  T const& get(LuminosityBlock const& event, InputTag const& tag) {
+    Handle<T> handle;
+    event.getByLabel(tag, handle);
+    // throw if the handle is not valid
+    return * handle.product();
+  }
+
+  template <typename T>
+  T const& get(LuminosityBlock const& event, EDGetToken const& token) {
+    Handle<T> handle;
+    event.getByToken(token, handle);
+    // throw if the handle is not valid
+    return * handle.product();
+  }
+
+  template <typename T>
+  T const& get(LuminosityBlock const& event, EDGetTokenT<T> const& token) {
+    Handle<T> handle;
+    event.getByToken(token, handle);
+    // throw if the handle is not valid
+    return * handle.product();
+  }
+
 }
-#endif
+
+#endif // FWCore_Framework_LuminosityBlock_h

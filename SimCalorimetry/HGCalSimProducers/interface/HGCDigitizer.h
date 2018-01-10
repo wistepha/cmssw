@@ -114,6 +114,10 @@ private :
   //average occupancies
   std::array<double,3> averageOccupancies_;
   uint32_t nEvents_;
+
+  std::vector<float> cce_;
+  
+  std::map< uint32_t, std::vector< std::pair<float, float> > > hitRefs_bx0;
 };
 
 

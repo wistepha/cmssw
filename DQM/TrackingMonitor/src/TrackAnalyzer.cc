@@ -23,6 +23,22 @@
 
 using namespace dqm;
 
+namespace {
+  template <typename T, size_t N>
+  std::array<T, N+1> makeLogBins(const double min, const double max) {
+    const double minLog10 = std::log10(min);
+    const double maxLog10 = std::log10(max);
+    const double width = (maxLog10-minLog10)/N;
+    std::array<T, N+1> ret;
+    ret[0] = std::pow(10,minLog10);
+    const double mult = std::pow(10, width);
+    for(size_t i=1; i<= N; ++i) {
+      ret[i] = ret[i-1]*mult;
+    }
+    return ret;
+  }
+}
+
 TrackAnalyzer::TrackAnalyzer(const edm::ParameterSet& iConfig) 
     : conf_( nullptr )
     , stateName_                       (iConfig.getParameter<std::string>("MeasurementState") )
@@ -111,7 +127,9 @@ void TrackAnalyzer::initHistos()
   DistanceOfClosestApproachToBS = nullptr;
   AbsDistanceOfClosestApproachToBS = nullptr;
   DistanceOfClosestApproachToPV = nullptr;
+  DistanceOfClosestApproachToPVZoom = nullptr;
   DeltaZToPV = nullptr;
+  DeltaZToPVZoom = nullptr;
   DistanceOfClosestApproachVsTheta = nullptr;
   DistanceOfClosestApproachVsPhi = nullptr;  
   DistanceOfClosestApproachToBSVsPhi = nullptr;
@@ -169,10 +187,12 @@ void TrackAnalyzer::initHisto(DQMStore::IBooker & ibooker, const edm::EventSetup
   bookHistosForHitProperties(ibooker);
   bookHistosForBeamSpot(ibooker);
   bookHistosForLScertification( ibooker);
-  if (doEffFromHitPatternVsPU_   || doAllPlots_) bookHistosForEfficiencyFromHitPatter(ibooker, iSetup, "");
-  if (doEffFromHitPatternVsBX_   || doAllPlots_) bookHistosForEfficiencyFromHitPatter(ibooker, iSetup, "VsBX");
-  if (doEffFromHitPatternVsLUMI_ || doAllPlots_) bookHistosForEfficiencyFromHitPatter(ibooker, iSetup, "VsSCALLUMI");
+  if (doEffFromHitPatternVsPU_   || doAllPlots_) bookHistosForEfficiencyFromHitPatter(ibooker, iSetup, "",false);
+  if (doEffFromHitPatternVsBX_   || doAllPlots_) bookHistosForEfficiencyFromHitPatter(ibooker, iSetup, "VsBX",false);
+  if (doEffFromHitPatternVsLUMI_ || doAllPlots_) bookHistosForEfficiencyFromHitPatter(ibooker, iSetup, "VsSCALLUMI",false);
   //  if (doEffFromHitPatternVsLUMI_ || doAllPlots_) bookHistosForEfficiencyFromHitPatter(ibooker, iSetup, "VsPIXELLUMI");
+  if (doEffFromHitPatternVsPU_   || doAllPlots_) bookHistosForEfficiencyFromHitPatter(ibooker, iSetup, "",true);
+  if (doEffFromHitPatternVsLUMI_ || doAllPlots_) bookHistosForEfficiencyFromHitPatter(ibooker, iSetup, "VsSCALLUMI",true);
 
   // book tracker specific related histograms
   // ---------------------------------------------------------------------------------//
@@ -204,29 +224,38 @@ void TrackAnalyzer::initHisto(DQMStore::IBooker & ibooker, const edm::EventSetup
 
 void TrackAnalyzer::bookHistosForEfficiencyFromHitPatter(DQMStore::IBooker &ibooker,
                                                          const edm::EventSetup & iSetup,
-							 const std::string suffix)
+							 const std::string suffix,bool useInac)
 {
 
-    ibooker.setCurrentFolder(TopFolder_ + "/HitEffFromHitPattern" + suffix);
+    ibooker.setCurrentFolder(TopFolder_ + "/HitEffFromHitPattern" + (useInac ? "All" :"") + suffix);
     
-    int LUMIBin   = conf_->getParameter<int>("LUMIBin");
+    constexpr int LUMIBin   = 300;   // conf_->getParameter<int>("LUMIBin");
     float LUMIMin = conf_->getParameter<double>("LUMIMin");
     float LUMIMax = conf_->getParameter<double>("LUMIMax");
     
+    int   PVBin = conf_->getParameter<int>   ("PVBin");
+    float PVMin = conf_->getParameter<double>("PVMin");
+    float PVMax = conf_->getParameter<double>("PVMax");
 
-    int NBINS[]        = { 50,   int(GetLumi::lastBunchCrossing),  300  , LUMIBin};
-    float MIN[]        = { 0.5,     0.5,  0., LUMIMin };
-    float MAX[]        = { 50.5, float(GetLumi::lastBunchCrossing)+0.5,  3., LUMIMax };
+
+    int NBINS[]        = { PVBin,   int(GetLumi::lastBunchCrossing),  LUMIBin, LUMIBin};
+    float MIN[]        = { PVMin,     0.5,  LUMIMin, LUMIMin };
+    float MAX[]        = { PVMax, float(GetLumi::lastBunchCrossing)+0.5,  LUMIMax, LUMIMax };
     std::string NAME[] = { "", "VsBX", "VsLUMI", "VsLUMI" };
-    
+   
+    auto logBins = makeLogBins<float,LUMIBin>(LUMIMin,LUMIMax);
+ 
     int mon = -1;
     int nbins = -1;
     float min = -1.;
     float max = -1.;
+    bool logQ = false;
     std::string name = "";
     for (int i=0; i<monQuantity::END; i++) {
       if (monName[i] == suffix) {
+        logQ =  (i>1); // VsLUMI
 	mon = i;
+        if (useInac) mon+=monQuantity::END;
 	nbins = NBINS[i];
 	min = MIN[i];
 	max = MAX[i];
@@ -259,27 +288,14 @@ void TrackAnalyzer::bookHistosForEfficiencyFromHitPatter(DQMStore::IBooker &iboo
           switch(cat) {
             case 0:
               hits_valid_.insert(std::make_pair(
-		  Key(det, sub_det, mon),
+		  Key(det, sub_det, mon), logQ? 
+                  ibooker.book1D(title, title, nbins, &logBins[0]) :
 		  ibooker.book1D(title, title, nbins, min, max)));
-              break;
-            case 1:
-              hits_missing_.insert(std::make_pair(
-		  Key(det, sub_det, mon),
-                  ibooker.book1D(title, title, nbins, min, max)));
-              break;
-            case 2:
-              hits_inactive_.insert(std::make_pair(
-		  Key(det, sub_det, mon),
-                  ibooker.book1D(title, title, nbins, min, max)));
-              break;
-            case 3:
-              hits_bad_.insert(std::make_pair(
-		  Key(det, sub_det, mon),
-                  ibooker.book1D(title, title, nbins, min, max)));
               break;
             case 4:
               hits_total_.insert(std::make_pair(
-		  Key(det, sub_det, mon),
+		  Key(det, sub_det, mon), logQ?	
+                  ibooker.book1D(title, title, nbins, &logBins[0]) :
                   ibooker.book1D(title, title, nbins, min, max)));
               break;
             default:
@@ -356,6 +372,7 @@ void TrackAnalyzer::bookHistosForHitProperties(DQMStore::IBooker & ibooker) {
       histname = "NumberOfValidRecHitsPerTrack_";
       NumberOfValidRecHitsPerTrack = ibooker.book1D(histname+CategoryName, histname+CategoryName, TKHitBin, TKHitMin, TKHitMax);
       NumberOfValidRecHitsPerTrack->setAxisTitle("Number of valid RecHits for each Track");
+
       NumberOfValidRecHitsPerTrack->setAxisTitle("Number of Tracks", 2);
 
       histname = "NumberOfLostRecHitsPerTrack_";
@@ -465,7 +482,7 @@ void TrackAnalyzer::bookHistosForHitProperties(DQMStore::IBooker & ibooker) {
       NumberOfMORecHitsPerTrackVsPt->setAxisTitle("Track p_{T} [GeV]", 1);
       NumberOfMORecHitsPerTrackVsPt->setAxisTitle("Average Number of Lost RecHits per Track", 2);
 
-      std::string layerTypeName[4] = {"","Off","3D","Missing"};
+      std::string layerTypeName[5] = {"","Off","3D","Missing","Pixel"};
       for (int i=0; i<4; ++i) {
         histname = "NumberOf"+ layerTypeName[i] + "LayersPerTrack_";
         NumberOfLayersPerTrack[i] = ibooker.book1D(histname+CategoryName, histname+CategoryName, TKLayBin, TKLayMin, TKLayMax);
@@ -473,7 +490,7 @@ void TrackAnalyzer::bookHistosForHitProperties(DQMStore::IBooker & ibooker) {
         NumberOfLayersPerTrack[i]->setAxisTitle("Number of Tracks", 2);
       }
       if ( doLayersVsPhiVsEtaPerTrack_ || doAllPlots_ )
-	for (int i=0; i<4; ++i) {
+	for (int i=0; i<5; ++i) {
           histname = "NumberOf"+ layerTypeName[i] + "LayersVsPhiVsEtaPerTrack_";
 	  NumberOfLayersVsPhiVsEtaPerTrack[i] = ibooker.bookProfile2D(histname+CategoryName, histname+CategoryName, 
 								    EtaBin, EtaMin, EtaMax, PhiBin, PhiMin, PhiMax, 0, 40., "");
@@ -628,32 +645,25 @@ void TrackAnalyzer::bookHistosForHitProperties(DQMStore::IBooker & ibooker) {
       }
 
       size_t StopReasonNameSize = sizeof(StopReasonName::StopReasonName)/sizeof(std::string);
-      if(StopReasonNameSize != static_cast<unsigned int>(StopReason::SIZE)) {
-        throw cms::Exception("Assert") << "StopReason::SIZE is " << static_cast<unsigned int>(StopReason::SIZE)
-                                       << " but StopReasonName's only for "
-                                       << StopReasonNameSize
-                                       << ". Please update DataFormats/TrackReco/interface/TrajectoryStopReasons.h.";
-      }
-
       histname = "stoppingSource_";
       stoppingSource = ibooker.book1D(histname+CategoryName, histname+CategoryName, StopReasonNameSize, 0., double(StopReasonNameSize));
       stoppingSource->setAxisTitle("stopping reason",1);
       stoppingSource->setAxisTitle("Number of Tracks",2);
       
       histname = "stoppingSourceVSeta_";
-      stoppingSourceVSeta = ibooker.book2D(histname+CategoryName, histname+CategoryName, EtaBin, EtaMin, EtaMax, StopReasonNameSize, 0., double(StopReasonNameSize));
+      stoppingSourceVSeta = ibooker.bookProfile(histname+CategoryName, histname+CategoryName,
+                                            EtaBin, EtaMin, EtaMax, 2, 0., 2.);
       stoppingSourceVSeta->setAxisTitle("track #eta",1);
-      stoppingSourceVSeta->setAxisTitle("stopping reason",2);
+      stoppingSourceVSeta->setAxisTitle("stopped fraction",2);
       
       histname = "stoppingSourceVSphi_";
-      stoppingSourceVSphi = ibooker.book2D(histname+CategoryName, histname+CategoryName, PhiBin, PhiMin, PhiMax, StopReasonNameSize, 0., double(StopReasonNameSize));
+      stoppingSourceVSphi = ibooker.bookProfile(histname+CategoryName, histname+CategoryName, 
+                                           PhiBin, PhiMin, PhiMax, 2, 0., 2.);
       stoppingSourceVSphi->setAxisTitle("track #phi",1);
-      stoppingSourceVSphi->setAxisTitle("stopping reason",2);
+      stoppingSourceVSphi->setAxisTitle("stopped fraction",2);
 
       for (size_t ibin=0; ibin<StopReasonNameSize; ibin++) {
 	stoppingSource->setBinLabel(ibin+1,StopReasonName::StopReasonName[ibin],1);
-	stoppingSourceVSeta->setBinLabel(ibin+1,StopReasonName::StopReasonName[ibin],2);
-	stoppingSourceVSphi->setBinLabel(ibin+1,StopReasonName::StopReasonName[ibin],2);
       }
 
     }
@@ -815,10 +825,22 @@ void TrackAnalyzer::bookHistosForBeamSpot(DQMStore::IBooker & ibooker) {
       DistanceOfClosestApproachToPV->setAxisTitle("Track d_{xy} w.r.t. PV (cm)",1);
       DistanceOfClosestApproachToPV->setAxisTitle("Number of Tracks",2);
       
+      histname = "DistanceOfClosestApproachToPVZoom_";
+      DistanceOfClosestApproachToPVZoom = ibooker.book1D(histname+CategoryName,histname+CategoryName,100,-0.08,0.08);
+      DistanceOfClosestApproachToPVZoom->setAxisTitle("Track d_{xy} w.r.t. PV (cm)",1);
+      DistanceOfClosestApproachToPVZoom->setAxisTitle("Number of Tracks",2);
+
+
       histname = "DeltaZToPV_";
       DeltaZToPV = ibooker.book1D(histname+CategoryName,histname+CategoryName,Z0Bin,Z0Min,Z0Max);
       DeltaZToPV->setAxisTitle("Track d_{z} w.r.t. PV (cm)",1);
       DeltaZToPV->setAxisTitle("Number of Tracks",2);
+
+      histname = "DeltaZToPVZoom_";
+      DeltaZToPVZoom = ibooker.book1D(histname+CategoryName,histname+CategoryName,100,-0.15,0.15);
+      DeltaZToPVZoom->setAxisTitle("Track d_{z} w.r.t. PV (cm)",1);
+      DeltaZToPVZoom->setAxisTitle("Number of Tracks",2);
+
       
       histname = "DistanceOfClosestApproachToPVVsPhi_";
       DistanceOfClosestApproachToPVVsPhi = ibooker.bookProfile(histname+CategoryName,histname+CategoryName, PhiBin, PhiMin, PhiMax, DxyBin, DxyMin, DxyMax,"");
@@ -964,7 +986,7 @@ void TrackAnalyzer::setNumberOfGoodVertices(const edm::Event & iEvent) {
   edm::Handle<reco::VertexCollection> recoPrimaryVerticesHandle;
   iEvent.getByToken(pvToken_, recoPrimaryVerticesHandle);
   if (recoPrimaryVerticesHandle.isValid())
-    if (recoPrimaryVerticesHandle->size() > 0)
+    if (!recoPrimaryVerticesHandle->empty())
       for (auto v : *recoPrimaryVerticesHandle)
         if (v.ndof() >= pvNDOF_ && !v.isFake())
           ++good_vertices_;
@@ -980,7 +1002,7 @@ void TrackAnalyzer::setLumi(const edm::Event & iEvent, const edm::EventSetup& iS
 
   edm::Handle<LumiScalersCollection> lumiScalers;
   iEvent.getByToken(lumiscalersToken_, lumiScalers);
-  if ( lumiScalers.isValid() && lumiScalers->size() ) {
+  if ( lumiScalers.isValid() && !lumiScalers->empty() ) {
     LumiScalersCollection::const_iterator scalit = lumiScalers->begin();
     scal_lumi_ = scalit->instantLumi();
   } else 
@@ -1034,7 +1056,7 @@ void TrackAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSe
   auto phiOut =  track.outerPosition().phi();
   auto etaOut =  track.outerPosition().eta();
 
-  int nRecHits      = track.hitPattern().numberOfHits(reco::HitPattern::TRACK_HITS);
+  int nRecHits      = track.hitPattern().numberOfAllHits(reco::HitPattern::TRACK_HITS);
   int nValidRecHits = track.numberOfValidHits();
   int nLostRecHits  = track.numberOfLostHits();
   int nLostIn =      track.hitPattern().numberOfLostTrackerHits(reco::HitPattern::MISSING_INNER_HITS);
@@ -1073,10 +1095,11 @@ void TrackAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSe
     NumberOfMIRecHitsPerTrackVsPt->Fill(pt,nLostIn);
     NumberOfMORecHitsPerTrackVsPt->Fill(pt,nLostOut);
 
-    int nLayers[4]   = { track.hitPattern().trackerLayersWithMeasurement(),
+    int nLayers[5]   = { track.hitPattern().trackerLayersWithMeasurement(),
                          track.hitPattern().trackerLayersTotallyOffOrBad(),
                          track.hitPattern().numberOfValidStripLayersWithMonoAndStereo() +  track.hitPattern().pixelLayersWithMeasurement(),
-                         track.hitPattern().trackerLayersWithoutMeasurement(reco::HitPattern::TRACK_HITS)
+                         track.hitPattern().trackerLayersWithoutMeasurement(reco::HitPattern::TRACK_HITS),
+                         track.hitPattern().pixelLayersWithMeasurement()
                        };
 
     // layers
@@ -1084,14 +1107,16 @@ void TrackAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSe
 
     // 2D plots    
     if ( doLayersVsPhiVsEtaPerTrack_ || doAllPlots_ )
-      for (int i=0;i<4;++i) NumberOfLayersVsPhiVsEtaPerTrack[i]->Fill(etaIn,phiIn,nLayers[i]);
+      for (int i=0;i<5;++i) NumberOfLayersVsPhiVsEtaPerTrack[i]->Fill(etaIn,phiIn,nLayers[i]);
 
   }
 
-  if (doEffFromHitPatternVsPU_   || doAllPlots_) fillHistosForEfficiencyFromHitPatter(track,"",           float(good_vertices_) );
-  if (doEffFromHitPatternVsBX_   || doAllPlots_) fillHistosForEfficiencyFromHitPatter(track,"VsBX",       float(bx_)            );
-  if (doEffFromHitPatternVsLUMI_ || doAllPlots_) fillHistosForEfficiencyFromHitPatter(track,"VsSCALLUMI", scal_lumi_            );
+  if (doEffFromHitPatternVsPU_   || doAllPlots_) fillHistosForEfficiencyFromHitPatter(track,"",           float(good_vertices_), false );
+  if (doEffFromHitPatternVsBX_   || doAllPlots_) fillHistosForEfficiencyFromHitPatter(track,"VsBX",       float(bx_), false            );
+  if (doEffFromHitPatternVsLUMI_ || doAllPlots_) fillHistosForEfficiencyFromHitPatter(track,"VsSCALLUMI", scal_lumi_, false            );
   //  if (doEffFromHitPatternVsLUMI_ || doAllPlots_) fillHistosForEfficiencyFromHitPatter(track,"VsPIXELLUMI", pixel_lumi_           );
+  if (doEffFromHitPatternVsPU_   || doAllPlots_) fillHistosForEfficiencyFromHitPatter(track,"",           float(good_vertices_), true );
+  if (doEffFromHitPatternVsLUMI_ || doAllPlots_) fillHistosForEfficiencyFromHitPatter(track,"VsSCALLUMI", scal_lumi_, true            );
 
 
   if (doGeneralPropertiesPlots_ || doAllPlots_){
@@ -1121,9 +1146,10 @@ void TrackAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSe
     // stopping source
     int max = stoppingSource->getNbinsX();
     double stop = track.stopReason() > max ? double(max-1) : static_cast<double>(track.stopReason());
+    double stopped = int(StopReason::NOT_STOPPED)==track.stopReason() ? 0. : 1.;
     stoppingSource->Fill(stop);
-    stoppingSourceVSeta->Fill(track.eta(),stop);
-    stoppingSourceVSphi->Fill(track.phi(),stop);
+    stoppingSourceVSeta->Fill(track.eta(),stopped);
+    stoppingSourceVSphi->Fill(track.phi(),stopped);
   }
 
   if ( doLumiAnalysis_ ) {
@@ -1159,7 +1185,7 @@ void TrackAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSe
   if(doDCAPlots_ || doPVPlots_ || doSIPPlots_ || doAllPlots_) {
     edm::Handle<reco::VertexCollection> recoPrimaryVerticesHandle;
     iEvent.getByToken(pvToken_,recoPrimaryVerticesHandle);
-    if (recoPrimaryVerticesHandle.isValid() && recoPrimaryVerticesHandle->size() > 0) {
+    if (recoPrimaryVerticesHandle.isValid() && !recoPrimaryVerticesHandle->empty()) {
       const reco::Vertex& pv = (*recoPrimaryVerticesHandle)[0];
     
 
@@ -1198,6 +1224,8 @@ void TrackAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSe
       zPointOfClosestApproachToPV->Fill(track.dz(pv.position()));
       DistanceOfClosestApproachToPV      -> Fill(track.dxy(pv.position()));
       DeltaZToPV                         -> Fill(track.dz (pv.position()));
+      DistanceOfClosestApproachToPVZoom  -> Fill(track.dxy(pv.position()));
+      DeltaZToPVZoom                     -> Fill(track.dz (pv.position()));
       DistanceOfClosestApproachToPVVsPhi -> Fill(track.phi(), track.dxy(pv.position()));
       xPointOfClosestApproachVsZ0wrtPV   -> Fill(track.dz(pv.position()),(track.vx()-pv.position().x()));
       yPointOfClosestApproachVsZ0wrtPV   -> Fill(track.dz(pv.position()),(track.vy()-pv.position().y()));
@@ -1257,12 +1285,13 @@ void TrackAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSe
 
 }
 
-void TrackAnalyzer::fillHistosForEfficiencyFromHitPatter(const reco::Track & track, const std::string suffix, const float monitoring) {
+void TrackAnalyzer::fillHistosForEfficiencyFromHitPatter(const reco::Track & track, const std::string suffix, const float monitoring, bool useInac) {
 
     int mon = -1;
     for (int i=0; i<monQuantity::END; i++) {
       if (monName[i] == suffix) mon = i;
     }
+    if (useInac) mon+=monQuantity::END;
 
     //    if (track.pt() > 1.0 && track.dxy() < 0.1 and monitoring > 0) {
     if (track.pt() > 1.0 && track.dxy() < 0.1 and monitoring > -9.) {
@@ -1271,7 +1300,7 @@ void TrackAnalyzer::fillHistosForEfficiencyFromHitPatter(const reco::Track & tra
       // reco::HitPattern::HitCategory, defined here:
       // http://cmslxr.fnal.gov/dxr/CMSSW/source/DataFormats/TrackReco/interface/HitPattern.h
       for (unsigned int category = 0; category < 3; ++category) {
-        for (int hit = 0; hit < hp.numberOfHits((reco::HitPattern::HitCategory)(category)); ++hit) {
+        for (int hit = 0; hit < hp.numberOfAllHits((reco::HitPattern::HitCategory)(category)); ++hit) {
           auto pattern = hp.getHitPattern((reco::HitPattern::HitCategory)(category), hit);
           // Boolean bad is missing simply because it is inferred and the only missing case.
           bool valid = hp.validHitFilter(pattern);
@@ -1294,15 +1323,10 @@ void TrackAnalyzer::fillHistosForEfficiencyFromHitPatter(const reco::Track & tra
               hits_valid_[Key(hp.getSubStructure(pattern), hp.getSubSubStructure(pattern), mon)]->Fill(monitoring);
               hits_total_[Key(hp.getSubStructure(pattern), hp.getSubSubStructure(pattern), mon)]->Fill(monitoring);
               break;
-            case 1:
-              hits_missing_[Key(hp.getSubStructure(pattern), hp.getSubSubStructure(pattern), mon)]->Fill(monitoring);
-              hits_total_[Key(hp.getSubStructure(pattern), hp.getSubSubStructure(pattern), mon)]->Fill(monitoring);
-              break;
             case 2:
-              hits_inactive_[Key(hp.getSubStructure(pattern), hp.getSubSubStructure(pattern), mon)]->Fill(monitoring);
-              break;
-            case 3:
-              hits_bad_[Key(hp.getSubStructure(pattern), hp.getSubSubStructure(pattern), mon)]->Fill(monitoring);
+              if (!useInac) break;
+            case 1:
+              hits_total_[Key(hp.getSubStructure(pattern), hp.getSubSubStructure(pattern), mon)]->Fill(monitoring);
               break;
             default:
               LogDebug("TrackAnalyzer") << "Invalid hit category used " << hit_type << " ignored\n";
@@ -1755,7 +1779,7 @@ void TrackAnalyzer::fillHistosForState(const edm::EventSetup& iSetup, const reco
       tkmes.TrackPhiErr->Fill(phierror);
       tkmes.TrackEtaErr->Fill(etaerror);
       
-      int nRecHits      = track.hitPattern().numberOfHits(reco::HitPattern::TRACK_HITS);
+      int nRecHits      = track.hitPattern().numberOfAllHits(reco::HitPattern::TRACK_HITS);
       int nValidRecHits = track.numberOfValidHits();
       // rec hits 
       tkmes.NumberOfRecHitsPerTrackVsPhi->Fill(phi,    nRecHits);

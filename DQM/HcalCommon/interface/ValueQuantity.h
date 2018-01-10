@@ -40,7 +40,7 @@ namespace hcaldqm
 			fQIE10TDC_16 = 25,
 			fDiffAbs = 26,
 			fRatio_0to2 = 27,
-			fN_to3000 = 28,
+			fN_to8000 = 28,
 			fEnergyTotal = 29,
 			fN_m0to10000 = 30,
 			fEtCorr_256 = 31,
@@ -48,30 +48,41 @@ namespace hcaldqm
 			fBX = 33,
 			fEnergy_1TeV = 34,
 			fState = 35,
-			fQIE10fC_300000 = 36,
+			fQIE10fC_400000 = 36,
 			fDataSize = 37,
 			fQIE10fC_2000 = 38,
-			fQIE8fC_1000_50 = 39,
-			fQIE11ADC_256 = 40,
-			fQIE11TDC_64 = 41,
-			fQIE11TDC_16 = 42,
-			fQIE11fC_300000 = 43,
-			fQIE11fC_2000 = 44,
-			fTime_ns_250 = 45,
-			fADC_256 = 46,
-			nValueQuantityType = 47
+			fQIE10fC_10000 = 39,
+			fQIE8fC_1000_50 = 40,
+			fTime_ns_250 = 41,
+			fADC_256 = 42,
+			ffC_generic_10000 = 43,
+			ffC_generic_400000 = 44,
+			fQIE10ADC_16 = 45,
+			fDualAnodeAsymmetry = 46,
+			fTimingRatio = 47,
+			fQIE10fC_100000Coarse = 48,
+			fBadTDC = 49,
 		};
 		const std::map<ValueQuantityType, std::string> name_value = {
 			{fN,"N"},
 			{fEvents,"Events"},
 			{fEnergy,"Energy"},
 			{fTiming_ns,"Timing"},
-			{fADC_128,"ADC (QIE8)"},
 			{fADC_5,"ADC (QIE8)"},
-			{fADC_15,"ADC QIE8()"},
-			{ffC_10000,"fC (QIE8)"},
+			{fADC_15,"ADC (QIE8)"},
+			{fADC_128,"ADC (QIE8)"},
+			{fADC_256,"ADC"},
+			{fQIE10ADC_256,"ADC (QIE10/11)"},
+			{fQIE10ADC_16,"ADC (QIE10/11)"},
 			{ffC_1000,"fC (QIE8)"},
 			{ffC_3000,"fC (QIE8)"},
+			{ffC_10000,"fC (QIE8)"},
+			{fQIE8fC_1000_50,"fC (QIE8)"},
+			{fQIE10fC_2000,"fC (QIE10/11)"},
+			{fQIE10fC_10000,"fC (QIE10/11)"},
+			{fQIE10fC_400000,"fC (QIE10/11)"},
+			{ffC_generic_10000,"fC (QIE8/10/11)"},
+			{ffC_generic_400000,"fC (QIE8/10/11)"},			
 			{fTiming_TS,"Timing"},
 			{fTiming_TS200,"Timing"},
 			{fLS,"LS"},
@@ -85,12 +96,11 @@ namespace hcaldqm
 			{fdEtRatio,"dEtRatio"},
 			{fSumdEt,"SumdEt"},
 			{fTiming_20TS,"Timing"},
-			{fQIE10ADC_256,"ADC (QIE10)"},
 			{fQIE10TDC_64,"TDC"},
 			{fQIE10TDC_16,"TDC"},
 			{fDiffAbs,"Q"},
 			{fRatio_0to2,"Ratio"},
-			{fN_to3000,"N"},
+			{fN_to8000,"N"},
 			{fEnergyTotal,"Energy"},
 			{fN_m0to10000,"N"},
 			{fEtCorr_256,"Et"},
@@ -98,17 +108,12 @@ namespace hcaldqm
 			{fBX,"BX"},
 			{fEnergy_1TeV,"Energy"},
 			{fState,"State"},
-			{fQIE10fC_300000,"fC (QIE10)"},
 			{fDataSize,"FED Data Size (kB)"},
-			{fQIE10fC_2000,"fC (QIE10)"},
-			{fQIE8fC_1000_50,"fC (QIE8)"},
-			{fQIE11ADC_256,"ADC (QIE11)"},
-			{fQIE11TDC_64,"TDC (QIE11)"},
-			{fQIE11TDC_16,"TDC (QIE11)"},
-			{fQIE11fC_300000,"fC (QIE11)"},
-			{fQIE11fC_2000,"fC (QIE11)"},
 			{fTime_ns_250,"Time (ns)"},
-			{fADC_256,"ADC"},
+			{fDualAnodeAsymmetry, "(q_{1}-q_{2})/(q_{1}+q_{2})"},
+			{fTimingRatio, "q_{SOI+1}/q_{SOI}"},
+			{fQIE10fC_100000Coarse,"fC (QIE10/11)"},
+			{fBadTDC, "TDC"},
 		};
 		const std::map<ValueQuantityType, double> min_value = {
 			{fN,-0.05},
@@ -135,29 +140,32 @@ namespace hcaldqm
 			{fSumdEt,0},
 			{fTiming_20TS,-0.5},
 			{fQIE10ADC_256,-0.5},
+			{fQIE10ADC_16,-0.5},
 			{fQIE10TDC_64,-0.5},
 			{fQIE10TDC_16,-0.5},
 			{fDiffAbs,0},
 			{fRatio_0to2,0},
-			{fN_to3000,0},
+			{fN_to8000,0},
 			{fEnergyTotal,0},
 			{fN_m0to10000,-0.05},
-			{fEtCorr_256,-2},
+			{fEtCorr_256,-1},
 			{fADCCorr_128,-2},
 			{fBX,-0.5},
 			{fEnergy_1TeV,0},
 			{fState,flag::fNA},
-			{fQIE10fC_300000,0},
+			{fQIE10fC_400000,0},
 			{fDataSize,0},
 			{fQIE10fC_2000,0},
+			{fQIE10fC_10000,0},
 			{fQIE8fC_1000_50,0},
-			{fQIE11ADC_256,-0.5},
-			{fQIE11TDC_64,-0.5},
-			{fQIE11TDC_16,-0.5},
-			{fQIE11fC_300000,0},
-			{fQIE11fC_2000,0},
 			{fTime_ns_250,-0.5},
 			{fADC_256,-0.5},
+			{ffC_generic_10000,0.},
+			{ffC_generic_400000,0.},	
+			{fDualAnodeAsymmetry,-1.},	
+			{fTimingRatio,0.},	
+			{fQIE10fC_100000Coarse,0},
+			{fBadTDC,49.5},
 		};
 		const std::map<ValueQuantityType, double> max_value = {
 			{fN,1000},
@@ -184,29 +192,32 @@ namespace hcaldqm
 			{fSumdEt,1000},
 			{fTiming_20TS,9.5},
 			{fQIE10ADC_256,255.5},
+			{fQIE10ADC_16,15.5},
 			{fQIE10TDC_64,63.5},
 			{fQIE10TDC_16,15.5},
 			{fDiffAbs,1},
 			{fRatio_0to2,2},
-			{fN_to3000,3000},
+			{fN_to8000,8000},
 			{fEnergyTotal,100000},
 			{fN_m0to10000,10000},
-			{fEtCorr_256,256},
+			{fEtCorr_256,257},
 			{fADCCorr_128,128},
 			{fBX,3600.5},
 			{fEnergy_1TeV,1000},
 			{fState,flag::nState},
-			{fQIE10fC_300000,300000},
+			{fQIE10fC_400000,400000},
 			{fDataSize,100},
 			{fQIE10fC_2000,2000},
+			{fQIE10fC_10000,10000},
 			{fQIE8fC_1000_50,1000},
-			{fQIE11ADC_256,255.5},
-			{fQIE11TDC_64,63.5},
-			{fQIE11TDC_16,15.5},
-			{fQIE11fC_300000,300000},
-			{fQIE11fC_2000,2000},
 			{fTime_ns_250,249.5},
 			{fADC_256,255.5},
+			{ffC_generic_10000,10000},
+			{ffC_generic_400000,400000},	
+			{fDualAnodeAsymmetry,1.},
+			{fTimingRatio,2.5},	
+			{fQIE10fC_100000Coarse,100000},
+			{fBadTDC,61.5},
 		};
 		const std::map<ValueQuantityType, int> nbins_value = {
 			{fN,200},
@@ -237,7 +248,7 @@ namespace hcaldqm
 			{fQIE10TDC_16,16},
 			{fDiffAbs,200},
 			{fRatio_0to2,100},
-			{fN_to3000,3000},
+			{fN_to8000,8000},
 			{fEnergyTotal,500},
 			{fN_m0to10000,100},
 			{fEtCorr_256,258},
@@ -245,17 +256,19 @@ namespace hcaldqm
 			{fBX,3601},
 			{fEnergy_1TeV,200},
 			{fState,flag::nState},
-			{fQIE10fC_300000,10000},
+			{fQIE10fC_400000,4000},
 			{fDataSize,100},
 			{fQIE10fC_2000,100},
+			{fQIE10fC_10000,500},
 			{fQIE8fC_1000_50,50},
-			{fQIE11ADC_256,256},
-			{fQIE11TDC_64,64},
-			{fQIE11TDC_16,16},
-			{fQIE11fC_300000,10000},
-			{fQIE11fC_2000,100},
 			{fTime_ns_250,250},
 			{fADC_256,256},
+			{ffC_generic_10000,10000},
+			{ffC_generic_400000,10000},	
+			{fDualAnodeAsymmetry,40},
+			{fTimingRatio,50},
+			{fQIE10fC_100000Coarse,1000},
+			{fBadTDC,12}
 		};
 		class ValueQuantity : public Quantity
 		{
@@ -264,24 +277,24 @@ namespace hcaldqm
 				ValueQuantity(ValueQuantityType type, bool isLog=false) :
 					Quantity(name_value.at(type), isLog), _type(type)
 				{}
-				virtual ~ValueQuantity() {}
+				~ValueQuantity() override {}
 
-				virtual ValueQuantity* makeCopy()
+				ValueQuantity* makeCopy() override
 				{return new ValueQuantity(_type, _isLog);}
 
 				//	get Value to be overriden
-				virtual int getValue(int x)
+				int getValue(int x) override
 				{return x;}
-				virtual double getValue(double x)
+				double getValue(double x) override
 				{return x;}
 
 				//	standard properties
-				virtual QuantityType type() {return fValueQuantity;}
-				virtual int nbins() {return nbins_value.at(_type);}
-				virtual double min() {return min_value.at(_type);}
-				virtual double max() {return max_value.at(_type);}
+				QuantityType type() override {return fValueQuantity;}
+				int nbins() override {return nbins_value.at(_type);}
+				double min() override {return min_value.at(_type);}
+				double max() override {return max_value.at(_type);}
 
-				virtual void setBits(TH1* o)
+				void setBits(TH1* o) override
 				{Quantity::setBits(o);setLS(o);}
 				virtual void setLS(TH1* o)
 				{
@@ -304,18 +317,18 @@ namespace hcaldqm
 				FlagQuantity(){}
 				FlagQuantity(std::vector<flag::Flag> const& flags) :
 					_flags(flags) {}
-				virtual ~FlagQuantity() {}
+				~FlagQuantity() override {}
 				
-				virtual FlagQuantity* makeCopy()
+				FlagQuantity* makeCopy() override
 				{return new FlagQuantity(_flags);}
 
-				virtual std::string name() {return "Flag";}
-				virtual int nbins() {return _flags.size();}
-				virtual double min() {return 0;}
-				virtual double max() {return _flags.size();}
-				virtual int getValue(int f) {return f;}
-				virtual uint32_t getBin(int f) {return f+1;}
-				virtual std::vector<std::string> getLabels()
+				std::string name() override {return "Flag";}
+				int nbins() override {return _flags.size();}
+				double min() override {return 0;}
+				double max() override {return _flags.size();}
+				int getValue(int f) override {return f;}
+				uint32_t getBin(int f) override {return f+1;}
+				std::vector<std::string> getLabels() override
 				{
 					std::vector<std::string> vnames;
 					for (std::vector<flag::Flag>::const_iterator
@@ -337,19 +350,19 @@ namespace hcaldqm
 				LumiSection(int n) : ValueQuantity(fLS), 
 					_n(n) 
 				{}
-				virtual ~LumiSection() {}
+				~LumiSection() override {}
 				
-				virtual LumiSection* makeCopy()
+				LumiSection* makeCopy() override
 				{return new LumiSection(_n);}
 
-				virtual std::string name() {return "LS";}
-				virtual int nbins() {return _n;}
-				virtual double min() {return 1;}
-				virtual double max() {return _n+1;}
-				virtual int getValue(int l) {return l;}
-				virtual uint32_t getBin(int l) 
+				std::string name() override {return "LS";}
+				int nbins() override {return _n;}
+				double min() override {return 1;}
+				double max() override {return _n+1;}
+				int getValue(int l) override {return l;}
+				uint32_t getBin(int l) override 
 				{return getValue(l);}
-				virtual void setMax(double x) {_n=x;}
+				void setMax(double x) override {_n=x;}
 
 			protected:
 				int _n;
@@ -362,13 +375,13 @@ namespace hcaldqm
 				RunNumber(std::vector<int> runs) :
 					_runs(runs) 
 				{}
-				virtual ~RunNumber() {}
+				~RunNumber() override {}
 
-				virtual std::string name() {return "Run";}
-				virtual int nbins() {return _runs.size();}
-				virtual double min() {return 0;}
-				virtual double max() {return _runs.size();}
-				virtual std::vector<std::string> getLabels()
+				std::string name() override {return "Run";}
+				int nbins() override {return _runs.size();}
+				double min() override {return 0;}
+				double max() override {return _runs.size();}
+				std::vector<std::string> getLabels() override
 				{
 					char name[10];
 					std::vector<std::string> labels;
@@ -379,7 +392,7 @@ namespace hcaldqm
 					}
 					return labels;
 				}
-				virtual int getValue(int run)
+				int getValue(int run) override
 				{
 					int ir = -1;
 					for (uint32_t i=0; i<_runs.size(); i++)
@@ -396,7 +409,7 @@ namespace hcaldqm
 					return ir;
 				}
 
-				virtual uint32_t getBin(int run)
+				uint32_t getBin(int run) override
 				{
 					return (this->getValue(run)+1);
 				}
@@ -412,12 +425,12 @@ namespace hcaldqm
 				EventNumber(int nevents) :
 					ValueQuantity(fN), _nevents(nevents)
 				{}
-				virtual ~EventNumber() {}
+				~EventNumber() override {}
 
-				virtual std::string name() {return "Event";}
-				virtual int nbins() {return _nevents;}
-				virtual double min() {return 0.5;}
-				virtual double max() {return _nevents+0.5;}
+				std::string name() override {return "Event";}
+				int nbins() override {return _nevents;}
+				double min() override {return 0.5;}
+				double max() override {return _nevents+0.5;}
 
 			protected:
 				int _nevents;
@@ -430,7 +443,7 @@ namespace hcaldqm
 				EventType(std::vector<uint32_t> const& vtypes):
 					ValueQuantity(fN)
 				{this->setup(vtypes);}
-				virtual ~EventType() {}
+				~EventType() override {}
 
 				virtual void setup(std::vector<uint32_t> const& vtypes)
 				{
@@ -438,26 +451,26 @@ namespace hcaldqm
 					for (uint32_t i=0; i<vtypes.size(); i++)
 						_types.insert(std::make_pair((uint32_t)vtypes[i], i));
 				}
-				virtual int getValue(int v)
+				int getValue(int v) override
 				{
 					return _types[(uint32_t)v];
 				}
-				virtual uint32_t getBin(int v)
+				uint32_t getBin(int v) override
 				{
 					return getValue(v)+1;
 				}
 
-				virtual int nbins() {return _types.size();}
-				virtual double min() {return 0;}
-				virtual double max() {return _types.size();}
-				virtual std::string name() {return "Event Type";}
+				int nbins() override {return _types.size();}
+				double min() override {return 0;}
+				double max() override {return _types.size();}
+				std::string name() override {return "Event Type";}
 
 			protected:
 				typedef boost::unordered_map<uint32_t, int> TypeMap;
 				TypeMap _types;
 
 			public:
-				virtual std::vector<std::string> getLabels()
+				std::vector<std::string> getLabels() override
 				{
 					std::vector<std::string> labels(_types.size());
 					std::cout << "SIZE = " << _types.size() << std::endl;
@@ -468,7 +481,7 @@ namespace hcaldqm
 					}
 					return labels;
 				}
-				virtual EventType* makeCopy()
+				EventType* makeCopy() override
 				{
 					std::vector<uint32_t> vtypes;
 					BOOST_FOREACH(TypeMap::value_type &p, _types)

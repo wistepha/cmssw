@@ -13,6 +13,7 @@
 
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "FWCore/Utilities/interface/InputTag.h"
+#include "FWCore/Utilities/interface/transform.h"
 #include "DQMServices/Core/interface/DQMStore.h"
 #include "DQM/TrackingMonitor/interface/TrackBuildingAnalyzer.h"
 #include "DQM/TrackingMonitor/interface/TrackAnalyzer.h"
@@ -31,6 +32,9 @@
 #include "CommonTools/TriggerUtils/interface/GenericTriggerEventFlag.h"
 #include "DataFormats/Common/interface/DetSetVectorNew.h"
 
+#include "DataFormats/Candidate/interface/Candidate.h"
+#include "DataFormats/Candidate/interface/CandidateFwd.h"
+
 #include "DQM/TrackingMonitor/interface/GetLumi.h"
 
 #include <string>
@@ -41,48 +45,50 @@
 TrackingMonitor::TrackingMonitor(const edm::ParameterSet& iConfig) 
     : confID_ ( iConfig.id() )
     , theTrackBuildingAnalyzer( new TrackBuildingAnalyzer(iConfig) )
-    , NumberOfTracks(NULL)
-    , NumberOfMeanRecHitsPerTrack(NULL)
-    , NumberOfMeanLayersPerTrack(NULL)
+    , NumberOfTracks(nullptr)
+    , NumberOfMeanRecHitsPerTrack(nullptr)
+    , NumberOfMeanLayersPerTrack(nullptr)
 				//    , NumberOfGoodTracks(NULL)
-    , FractionOfGoodTracks(NULL)
-    , NumberOfSeeds(NULL)
-    , NumberOfSeeds_lumiFlag(NULL)
-    , NumberOfTrackCandidates(NULL)
+    , FractionOfGoodTracks(nullptr)
+    , NumberOfTrackingRegions(nullptr)
+    , NumberOfSeeds(nullptr)
+    , NumberOfSeeds_lumiFlag(nullptr)
+    , NumberOfTrackCandidates(nullptr)
+    , FractionCandidatesOverSeeds(nullptr)
 				//    , NumberOfGoodTrkVsClus(NULL)
-    , NumberEventsOfVsLS(NULL)
-    , NumberOfTracksVsLS(NULL)
+    , NumberEventsOfVsLS(nullptr)
+    , NumberOfTracksVsLS(nullptr)
 				//    , NumberOfGoodTracksVsLS(NULL)
-    , GoodTracksFractionVsLS(NULL)
+    , GoodTracksFractionVsLS(nullptr)
 				//    , GoodTracksNumberOfRecHitsPerTrackVsLS(NULL)
 				// ADD by Mia for PU monitoring
 				// vertex plots to be moved in ad hoc class
-    , NumberOfGoodPVtxVsLS(NULL)
-    , NumberOfGoodPVtxWO0VsLS(NULL)
-    , NumberEventsOfVsBX (NULL)
-    , NumberOfTracksVsBX(NULL)
-    , GoodTracksFractionVsBX(NULL)
-    , NumberOfRecHitsPerTrackVsBX(NULL)
-    , NumberOfGoodPVtxVsBX(NULL)
-    , NumberOfGoodPVtxWO0VsBX(NULL)
-    , NumberOfTracksVsBXlumi(NULL)
-    , NumberOfTracksVsGoodPVtx(NULL)
-    , NumberOfTracksVsPUPVtx(NULL)
-    , NumberEventsOfVsGoodPVtx(NULL)
-    , GoodTracksFractionVsGoodPVtx(NULL)
-    , NumberOfRecHitsPerTrackVsGoodPVtx(NULL)
-    , NumberOfPVtxVsGoodPVtx(NULL)
-    , NumberOfPixelClustersVsGoodPVtx(NULL)
-    , NumberOfStripClustersVsGoodPVtx(NULL)
-    , NumberEventsOfVsLUMI(NULL)
-    , NumberOfTracksVsLUMI(NULL)
-    , GoodTracksFractionVsLUMI(NULL)
-    , NumberOfRecHitsPerTrackVsLUMI(NULL)
-    , NumberOfGoodPVtxVsLUMI(NULL)
-    , NumberOfGoodPVtxWO0VsLUMI(NULL)
-    , NumberOfPixelClustersVsLUMI(NULL)
-    , NumberOfStripClustersVsLUMI(NULL)
-    , NumberOfTracks_lumiFlag(NULL)
+    , NumberOfGoodPVtxVsLS(nullptr)
+    , NumberOfGoodPVtxWO0VsLS(nullptr)
+    , NumberEventsOfVsBX (nullptr)
+    , NumberOfTracksVsBX(nullptr)
+    , GoodTracksFractionVsBX(nullptr)
+    , NumberOfRecHitsPerTrackVsBX(nullptr)
+    , NumberOfGoodPVtxVsBX(nullptr)
+    , NumberOfGoodPVtxWO0VsBX(nullptr)
+    , NumberOfTracksVsBXlumi(nullptr)
+    , NumberOfTracksVsGoodPVtx(nullptr)
+    , NumberOfTracksVsPUPVtx(nullptr)
+    , NumberEventsOfVsGoodPVtx(nullptr)
+    , GoodTracksFractionVsGoodPVtx(nullptr)
+    , NumberOfRecHitsPerTrackVsGoodPVtx(nullptr)
+    , NumberOfPVtxVsGoodPVtx(nullptr)
+    , NumberOfPixelClustersVsGoodPVtx(nullptr)
+    , NumberOfStripClustersVsGoodPVtx(nullptr)
+    , NumberEventsOfVsLUMI(nullptr)
+    , NumberOfTracksVsLUMI(nullptr)
+    , GoodTracksFractionVsLUMI(nullptr)
+    , NumberOfRecHitsPerTrackVsLUMI(nullptr)
+    , NumberOfGoodPVtxVsLUMI(nullptr)
+    , NumberOfGoodPVtxWO0VsLUMI(nullptr)
+    , NumberOfPixelClustersVsLUMI(nullptr)
+    , NumberOfStripClustersVsLUMI(nullptr)
+    , NumberOfTracks_lumiFlag(nullptr)
 				//    , NumberOfGoodTracks_lumiFlag(NULL)
 
     , builderName              ( iConfig.getParameter<std::string>("TTRHBuilder"))
@@ -118,6 +124,40 @@ TrackingMonitor::TrackingMonitor(const edm::ParameterSet& iConfig)
   trackToken_          = consumes<edm::View<reco::Track> >(trackProducer);
   trackCandidateToken_ = consumes<TrackCandidateCollection>(tcProducer); 
   seedToken_           = consumes<edm::View<TrajectorySeed> >(seedProducer);
+  seedStopInfoToken_   = consumes<std::vector<SeedStopInfo> >(tcProducer);
+
+  doMVAPlots = iConfig.getParameter<bool>("doMVAPlots");
+  if(doMVAPlots) {
+    mvaQualityTokens_ = edm::vector_transform(iConfig.getParameter<std::vector<std::string> >("MVAProducers"),
+                                              [&](const std::string& tag) {
+                                                return std::make_tuple(consumes<MVACollection>(edm::InputTag(tag, "MVAValues")),
+                                                                       consumes<QualityMaskCollection>(edm::InputTag(tag, "QualityMasks")));
+                                              });
+    mvaTrackToken_ = consumes<edm::View<reco::Track> >(iConfig.getParameter<edm::InputTag>("TrackProducerForMVA"));
+  }
+
+  doRegionPlots = iConfig.getParameter<bool>("doRegionPlots");
+  doRegionCandidatePlots = iConfig.getParameter<bool>("doRegionCandidatePlots");
+  if(doRegionPlots) {
+    const auto& regionTag = iConfig.getParameter<edm::InputTag>("RegionProducer");
+    if(!regionTag.label().empty()) {
+      regionToken_ = consumes<edm::OwnVector<TrackingRegion> >(regionTag);
+    }
+    const auto& regionLayersTag = iConfig.getParameter<edm::InputTag>("RegionSeedingLayersProducer");
+    if(!regionLayersTag.label().empty()) {
+      if(!regionToken_.isUninitialized()) {
+        throw cms::Exception("Configuration") << "Only one of 'RegionProducer' and 'RegionSeedingLayersProducer' can be non-empty, now both are.";
+      }
+      regionLayerSetsToken_ = consumes<TrackingRegionsSeedingLayerSets>(regionLayersTag);
+    }
+    else if(regionToken_.isUninitialized()) {
+      throw cms::Exception("Configuration") << "With doRegionPlots=True either 'RegionProducer' or 'RegionSeedingLayersProducer' must be non-empty, now both are empty.";
+    }
+
+    if(doRegionCandidatePlots) {
+      regionCandidateToken_ = consumes<reco::CandidateView>(iConfig.getParameter<edm::InputTag>("RegionCandidates"));
+    }
+  }
 
   edm::InputTag stripClusterInputTag_ = iConfig.getParameter<edm::InputTag>("stripCluster");
   edm::InputTag pixelClusterInputTag_ = iConfig.getParameter<edm::InputTag>("pixelCluster");
@@ -287,13 +327,13 @@ void TrackingMonitor::bookHistograms(DQMStore::IBooker & ibooker,
      ibooker.setCurrentFolder(MEFolderName+"/GeneralProperties");
   
      histname = "NumberOfTracksVsLS_"+ CategoryName;
-     NumberOfTracksVsLS = ibooker.bookProfile(histname,histname, LSBin,LSMin,LSMax, TKNoMin, (TKNoMax+0.5)*3.-0.5,"");
+     NumberOfTracksVsLS = ibooker.bookProfile(histname,histname, LSBin,LSMin,LSMax, TKNoMin, TKNoMax*3.,"");
      NumberOfTracksVsLS->getTH1()->SetCanExtend(TH1::kAllAxes);
      NumberOfTracksVsLS->setAxisTitle("#Lumi section",1);
      NumberOfTracksVsLS->setAxisTitle("Number of  Tracks",2);
   
      histname = "NumberOfRecHitsPerTrackVsLS_" + CategoryName;
-     NumberOfRecHitsPerTrackVsLS = ibooker.bookProfile(histname,histname, LSBin,LSMin,LSMax,0.,40.,"");
+     NumberOfRecHitsPerTrackVsLS = ibooker.bookProfile(histname,histname, LSBin,LSMin,LSMax,0.,200.,"");
      NumberOfRecHitsPerTrackVsLS->getTH1()->SetCanExtend(TH1::kAllAxes);
      NumberOfRecHitsPerTrackVsLS->setAxisTitle("#Lumi section",1);
      NumberOfRecHitsPerTrackVsLS->setAxisTitle("Mean number of Valid RecHits per track",2);
@@ -308,14 +348,13 @@ void TrackingMonitor::bookHistograms(DQMStore::IBooker & ibooker,
      double GoodPVtxMax   = conf->getParameter<double>("GoodPVtxMax");
 
      histname = "NumberOfGoodPVtxVsLS_" + CategoryName;
-     NumberOfGoodPVtxVsLS = ibooker.bookProfile(histname,histname, LSBin,LSMin,LSMax,GoodPVtxMin,GoodPVtxMax,"");
+     NumberOfGoodPVtxVsLS = ibooker.bookProfile(histname,histname, LSBin,LSMin,LSMax,GoodPVtxMin,3.*GoodPVtxMax,"");
      NumberOfGoodPVtxVsLS->getTH1()->SetCanExtend(TH1::kAllAxes);
      NumberOfGoodPVtxVsLS->setAxisTitle("#Lumi section",1);
      NumberOfGoodPVtxVsLS->setAxisTitle("Mean number of good PV",2);
 
      histname = "NumberOfGoodPVtxWO0VsLS_" + CategoryName;
-     NumberOfGoodPVtxWO0VsLS = ibooker.bookProfile(histname,histname, LSBin,LSMin,LSMax,GoodPVtxMin,GoodPVtxMax,"");
-     NumberOfGoodPVtxWO0VsLS->getTH1()->SetCanExtend(TH1::kAllAxes);
+     NumberOfGoodPVtxWO0VsLS = ibooker.bookProfile(histname,histname, LSBin,LSMin,LSMax,GoodPVtxMin,3.*GoodPVtxMax,"");
      NumberOfGoodPVtxWO0VsLS->setAxisTitle("#Lumi section",1);
      NumberOfGoodPVtxWO0VsLS->setAxisTitle("Mean number of good PV",2);
 
@@ -333,38 +372,32 @@ void TrackingMonitor::bookHistograms(DQMStore::IBooker & ibooker,
        
        histname = "NumberEventsVsBX_" + CategoryName;
        NumberEventsOfVsBX = ibooker.book1D(histname,histname, BXBin,BXMin,BXMax);
-       NumberEventsOfVsBX->getTH1()->SetCanExtend(TH1::kAllAxes);
        NumberEventsOfVsBX->setAxisTitle("BX",1);
        NumberEventsOfVsBX->setAxisTitle("Number of events",2);
        
        histname = "NumberOfTracksVsBX_"+ CategoryName;
-       NumberOfTracksVsBX = ibooker.bookProfile(histname,histname, BXBin,BXMin,BXMax, TKNoMin, (TKNoMax+0.5)*3.-0.5,"");
-       NumberOfTracksVsBX->getTH1()->SetCanExtend(TH1::kAllAxes);
+       NumberOfTracksVsBX = ibooker.bookProfile(histname,histname, BXBin,BXMin,BXMax, TKNoMin, TKNoMax*3.,"");
        NumberOfTracksVsBX->setAxisTitle("BX",1);
        NumberOfTracksVsBX->setAxisTitle("Number of  Tracks",2);
        
        histname = "NumberOfRecHitsPerTrackVsBX_" + CategoryName;
-       NumberOfRecHitsPerTrackVsBX = ibooker.bookProfile(histname,histname, BXBin,BXMin,BXMax,0.,40.,"");
-       NumberOfRecHitsPerTrackVsBX->getTH1()->SetCanExtend(TH1::kAllAxes);
+       NumberOfRecHitsPerTrackVsBX = ibooker.bookProfile(histname,histname, BXBin,BXMin,BXMax,0.,200.,"");
        NumberOfRecHitsPerTrackVsBX->setAxisTitle("BX",1);
        NumberOfRecHitsPerTrackVsBX->setAxisTitle("Mean number of Valid RecHits per track",2);
        
        histname = "NumberOfGoodPVtxVsBX_" + CategoryName;
-       NumberOfGoodPVtxVsBX = ibooker.bookProfile(histname,histname, BXBin,BXMin,BXMax,GoodPVtxMin,GoodPVtxMax,"");
-       NumberOfGoodPVtxVsBX->getTH1()->SetCanExtend(TH1::kAllAxes);
+       NumberOfGoodPVtxVsBX = ibooker.bookProfile(histname,histname, BXBin,BXMin,BXMax,GoodPVtxMin,3.*GoodPVtxMax,"");
        NumberOfGoodPVtxVsBX->setAxisTitle("BX",1);
        NumberOfGoodPVtxVsBX->setAxisTitle("Mean number of good PV",2);
        
        histname = "NumberOfGoodPVtxWO0VsBX_" + CategoryName;
-       NumberOfGoodPVtxWO0VsBX = ibooker.bookProfile(histname,histname, BXBin,BXMin,BXMax,GoodPVtxMin,GoodPVtxMax,"");
-       NumberOfGoodPVtxWO0VsBX->getTH1()->SetCanExtend(TH1::kAllAxes);
+       NumberOfGoodPVtxWO0VsBX = ibooker.bookProfile(histname,histname, BXBin,BXMin,BXMax,GoodPVtxMin,3.*GoodPVtxMax,"");
        NumberOfGoodPVtxWO0VsBX->setAxisTitle("BX",1);
        NumberOfGoodPVtxWO0VsBX->setAxisTitle("Mean number of good PV",2);
        
        if (doFractionPlot_) {
 	 histname = "GoodTracksFractionVsBX_"+ CategoryName;
 	 GoodTracksFractionVsBX = ibooker.bookProfile(histname,histname, BXBin,BXMin,BXMax,0,1.1,"");
-	 GoodTracksFractionVsBX->getTH1()->SetCanExtend(TH1::kAllAxes);
 	 GoodTracksFractionVsBX->setAxisTitle("BX",1);
 	 GoodTracksFractionVsBX->setAxisTitle("Fraction of Good Tracks",2);
        }
@@ -384,61 +417,53 @@ void TrackingMonitor::bookHistograms(DQMStore::IBooker & ibooker,
      if ( doPlotsVsGoodPVtx_ ) {
       ibooker.setCurrentFolder(MEFolderName+"/PUmonitoring");
       // get binning from the configuration
-       int    GoodPVtxBin   = conf->getParameter<int>("GoodPVtxBin");
-       double GoodPVtxMin   = conf->getParameter<double>("GoodPVtxMin");
-       double GoodPVtxMax   = conf->getParameter<double>("GoodPVtxMax");
+      int   PVBin = conf->getParameter<int>   ("PVBin");
+      float PVMin = conf->getParameter<double>("PVMin");
+      float PVMax = conf->getParameter<double>("PVMax");
     
        histname = "NumberOfTracksVsGoodPVtx";
-       NumberOfTracksVsGoodPVtx = ibooker.bookProfile(histname,histname,GoodPVtxBin,GoodPVtxMin,GoodPVtxMax,TKNoMin, (TKNoMax+0.5)*3.-0.5,"");
-       NumberOfTracksVsGoodPVtx->getTH1()->SetCanExtend(TH1::kAllAxes);
+       NumberOfTracksVsGoodPVtx = ibooker.bookProfile(histname,histname,PVBin,PVMin,PVMax,TKNoMin, TKNoMax*5.,"");
        NumberOfTracksVsGoodPVtx->setAxisTitle("Number of PV",1);
        NumberOfTracksVsGoodPVtx->setAxisTitle("Mean number of Tracks per Event",2);
 
        histname = "NumberOfTracksVsPUPVtx";
-       NumberOfTracksVsPUPVtx = ibooker.bookProfile(histname,histname,GoodPVtxBin,GoodPVtxMin,GoodPVtxMax,0., 100.,"");
-       NumberOfTracksVsPUPVtx->getTH1()->SetCanExtend(TH1::kAllAxes);
+       NumberOfTracksVsPUPVtx = ibooker.bookProfile(histname,histname,PVBin,PVMin,PVMax,0., TKNoMax*5.,"");
        NumberOfTracksVsPUPVtx->setAxisTitle("Number of PU",1);
        NumberOfTracksVsPUPVtx->setAxisTitle("Mean number of Tracks per PUvtx",2);
 
        histname = "NumberEventsVsGoodPVtx";
-       NumberEventsOfVsGoodPVtx = ibooker.book1D(histname,histname,GoodPVtxBin,GoodPVtxMin,GoodPVtxMax);
-       NumberEventsOfVsGoodPVtx->getTH1()->SetCanExtend(TH1::kAllAxes);
+       NumberEventsOfVsGoodPVtx = ibooker.book1D(histname,histname,PVBin,PVMin,PVMax);
        NumberEventsOfVsGoodPVtx->setAxisTitle("Number of good PV (PU)",1);
        NumberEventsOfVsGoodPVtx->setAxisTitle("Number of events",2);
 
        if (doFractionPlot_) {
 	 histname = "GoodTracksFractionVsGoodPVtx";
-	 GoodTracksFractionVsGoodPVtx = ibooker.bookProfile(histname,histname,GoodPVtxBin,GoodPVtxMin,GoodPVtxMax,0., 400.,"");
-	 GoodTracksFractionVsGoodPVtx->getTH1()->SetCanExtend(TH1::kAllAxes);
+	 GoodTracksFractionVsGoodPVtx = ibooker.bookProfile(histname,histname,PVBin,PVMin,PVMax,0., 1.1,"");
 	 GoodTracksFractionVsGoodPVtx->setAxisTitle("Number of good PV (PU)",1);
 	 GoodTracksFractionVsGoodPVtx->setAxisTitle("Mean fraction of good tracks",2);
        }
 
        histname = "NumberOfRecHitsPerTrackVsGoodPVtx";
-       NumberOfRecHitsPerTrackVsGoodPVtx = ibooker.bookProfile(histname,histname,GoodPVtxBin,GoodPVtxMin,GoodPVtxMax,0., 100.,"");
-       NumberOfRecHitsPerTrackVsGoodPVtx->getTH1()->SetCanExtend(TH1::kAllAxes);
+       NumberOfRecHitsPerTrackVsGoodPVtx = ibooker.bookProfile(histname,histname,PVBin,PVMin,PVMax,0., 200.,"");
        NumberOfRecHitsPerTrackVsGoodPVtx->setAxisTitle("Number of good PV (PU)",1);
        NumberOfRecHitsPerTrackVsGoodPVtx->setAxisTitle("Mean number of valid rechits per Tracks",2);
 
        histname = "NumberOfPVtxVsGoodPVtx";
-       NumberOfPVtxVsGoodPVtx = ibooker.bookProfile(histname,histname,GoodPVtxBin,GoodPVtxMin,GoodPVtxMax,0., 100.,"");
-       NumberOfPVtxVsGoodPVtx->getTH1()->SetCanExtend(TH1::kAllAxes);
+       NumberOfPVtxVsGoodPVtx = ibooker.bookProfile(histname,histname,PVBin,PVMin,PVMax,0., 3.*PVMax,"");
        NumberOfPVtxVsGoodPVtx->setAxisTitle("Number of good PV (PU)",1);
        NumberOfPVtxVsGoodPVtx->setAxisTitle("Mean number of vertices",2);
 
        double NClusPxMin = conf->getParameter<double>("NClusPxMin");
        double NClusPxMax = conf->getParameter<double>("NClusPxMax");
        histname = "NumberOfPixelClustersVsGoodPVtx";
-       NumberOfPixelClustersVsGoodPVtx = ibooker.bookProfile(histname,histname,GoodPVtxBin,GoodPVtxMin,GoodPVtxMax,NClusPxMin,NClusPxMax,"");
-       NumberOfPixelClustersVsGoodPVtx->getTH1()->SetCanExtend(TH1::kAllAxes);
+       NumberOfPixelClustersVsGoodPVtx = ibooker.bookProfile(histname,histname,PVBin,PVMin,PVMax,NClusPxMin,3.*NClusPxMax,"");
        NumberOfPixelClustersVsGoodPVtx->setAxisTitle("Number of good PV (PU)",1);
        NumberOfPixelClustersVsGoodPVtx->setAxisTitle("Mean number of pixel clusters",2);
        
        double NClusStrMin = conf->getParameter<double>("NClusStrMin");
        double NClusStrMax = conf->getParameter<double>("NClusStrMax");
        histname = "NumberOfStripClustersVsGoodPVtx";
-       NumberOfStripClustersVsGoodPVtx = ibooker.bookProfile(histname,histname,GoodPVtxBin,GoodPVtxMin,GoodPVtxMax,NClusStrMin,NClusStrMax,"");
-       NumberOfStripClustersVsGoodPVtx->getTH1()->SetCanExtend(TH1::kAllAxes);
+       NumberOfStripClustersVsGoodPVtx = ibooker.bookProfile(histname,histname,PVBin,PVMin,PVMax,NClusStrMin,3.*NClusStrMax,"");
        NumberOfStripClustersVsGoodPVtx->setAxisTitle("Number of good PV (PU)",1);
        NumberOfStripClustersVsGoodPVtx->setAxisTitle("Mean number of strip clusters",2);
   
@@ -453,58 +478,50 @@ void TrackingMonitor::bookHistograms(DQMStore::IBooker & ibooker,
        
        histname = "NumberEventsVsLUMI";
        NumberEventsOfVsLUMI = ibooker.book1D(histname,histname,LUMIBin,LUMIMin,LUMIMax);
-       NumberEventsOfVsLUMI->getTH1()->SetCanExtend(TH1::kAllAxes);
        NumberEventsOfVsLUMI->setAxisTitle("scal lumi [10e30 Hz cm^{-2}]",1);
        NumberEventsOfVsLUMI->setAxisTitle("Number of events",2);
        
        histname = "NumberOfTracksVsLUMI";
-       NumberOfTracksVsLUMI = ibooker.bookProfile(histname,histname,LUMIBin,LUMIMin,LUMIMax,0., 400.,"");
-       NumberOfTracksVsLUMI->getTH1()->SetCanExtend(TH1::kAllAxes);
+       NumberOfTracksVsLUMI = ibooker.bookProfile(histname,histname,LUMIBin,LUMIMin,LUMIMax,0., 2000.,"");
        NumberOfTracksVsLUMI->setAxisTitle("scal lumi [10e30 Hz cm^{-2}]",1);
        NumberOfTracksVsLUMI->setAxisTitle("Mean number of vertices",2);
        
        if (doFractionPlot_) {
 	 histname = "GoodTracksFractionVsLUMI";
-	 GoodTracksFractionVsLUMI = ibooker.bookProfile(histname,histname,LUMIBin,LUMIMin,LUMIMax,0., 100.,"");
-	 GoodTracksFractionVsLUMI->getTH1()->SetCanExtend(TH1::kAllAxes);
+	 GoodTracksFractionVsLUMI = ibooker.bookProfile(histname,histname,LUMIBin,LUMIMin,LUMIMax,0., 1.1,"");
 	 GoodTracksFractionVsLUMI->setAxisTitle("scal lumi [10e30 Hz cm^{-2}]",1);
 	 GoodTracksFractionVsLUMI->setAxisTitle("Mean number of vertices",2);
        }
 
        histname = "NumberOfRecHitsPerTrackVsLUMI";
-       NumberOfRecHitsPerTrackVsLUMI = ibooker.bookProfile(histname,histname,LUMIBin,LUMIMin,LUMIMax,0., 20.,"");
-       NumberOfRecHitsPerTrackVsLUMI->getTH1()->SetCanExtend(TH1::kAllAxes);
+       NumberOfRecHitsPerTrackVsLUMI = ibooker.bookProfile(histname,histname,LUMIBin,LUMIMin,LUMIMax,0., 200.,"");
        NumberOfRecHitsPerTrackVsLUMI->setAxisTitle("scal lumi [10e30 Hz cm^{-2}]",1);
        NumberOfRecHitsPerTrackVsLUMI->setAxisTitle("Mean number of vertices",2);
 
-       double GoodPVtxMin   = conf->getParameter<double>("GoodPVtxMin");
-       double GoodPVtxMax   = conf->getParameter<double>("GoodPVtxMax");
+       double PVMin   = conf->getParameter<double>("PVMin");
+       double PVMax   = conf->getParameter<double>("PVMax");
        
        histname = "NumberOfGoodPVtxVsLUMI";
-       NumberOfGoodPVtxVsLUMI = ibooker.bookProfile(histname,histname,LUMIBin,LUMIMin,LUMIMax,GoodPVtxMin,GoodPVtxMax,"");
-       NumberOfGoodPVtxVsLUMI->getTH1()->SetCanExtend(TH1::kAllAxes);
+       NumberOfGoodPVtxVsLUMI = ibooker.bookProfile(histname,histname,LUMIBin,LUMIMin,LUMIMax,PVMin,3.*PVMax,"");
        NumberOfGoodPVtxVsLUMI->setAxisTitle("scal lumi [10e30 Hz cm^{-2}]",1);
        NumberOfGoodPVtxVsLUMI->setAxisTitle("Mean number of vertices",2);
 
        histname = "NumberOfGoodPVtxWO0VsLUMI";
-       NumberOfGoodPVtxWO0VsLUMI = ibooker.bookProfile(histname,histname,LUMIBin,LUMIMin,LUMIMax,GoodPVtxMin,GoodPVtxMax,"");
-       NumberOfGoodPVtxWO0VsLUMI->getTH1()->SetCanExtend(TH1::kAllAxes);
+       NumberOfGoodPVtxWO0VsLUMI = ibooker.bookProfile(histname,histname,LUMIBin,LUMIMin,LUMIMax,PVMin,3.*PVMax,"");
        NumberOfGoodPVtxWO0VsLUMI->setAxisTitle("scal lumi [10e30 Hz cm^{-2}]",1);
        NumberOfGoodPVtxWO0VsLUMI->setAxisTitle("Mean number of vertices",2);
 
        double NClusPxMin = conf->getParameter<double>("NClusPxMin");
        double NClusPxMax = conf->getParameter<double>("NClusPxMax");
        histname = "NumberOfPixelClustersVsGoodPVtx";
-       NumberOfPixelClustersVsLUMI = ibooker.bookProfile(histname,histname,LUMIBin,LUMIMin,LUMIMax,NClusPxMin,NClusPxMax,"");
-       NumberOfPixelClustersVsLUMI->getTH1()->SetCanExtend(TH1::kAllAxes);
+       NumberOfPixelClustersVsLUMI = ibooker.bookProfile(histname,histname,LUMIBin,LUMIMin,LUMIMax,NClusPxMin,3.*NClusPxMax,"");
        NumberOfPixelClustersVsLUMI->setAxisTitle("scal lumi [10e30 Hz cm^{-2}]",1);
        NumberOfPixelClustersVsLUMI->setAxisTitle("Mean number of pixel clusters",2);
        
        double NClusStrMin = conf->getParameter<double>("NClusStrMin");
        double NClusStrMax = conf->getParameter<double>("NClusStrMax");
        histname = "NumberOfStripClustersVsLUMI";
-       NumberOfStripClustersVsLUMI = ibooker.bookProfile(histname,histname,LUMIBin,LUMIMin,LUMIMax,NClusStrMin,NClusStrMax,"");
-       NumberOfStripClustersVsLUMI->getTH1()->SetCanExtend(TH1::kAllAxes);
+       NumberOfStripClustersVsLUMI = ibooker.bookProfile(histname,histname,LUMIBin,LUMIMin,LUMIMax,NClusStrMin,3.*NClusStrMax,"");
        NumberOfStripClustersVsLUMI->setAxisTitle("scal lumi [10e30 Hz cm^{-2}]",1);
        NumberOfStripClustersVsLUMI->setAxisTitle("Mean number of strip clusters",2);
   
@@ -520,8 +537,7 @@ void TrackingMonitor::bookHistograms(DQMStore::IBooker & ibooker,
        double BXlumiMax   = BXlumiParameters.getParameter<double>("BXlumiMax");
     
        histname = "NumberOfTracksVsBXlumi_"+ CategoryName;
-       NumberOfTracksVsBXlumi = ibooker.bookProfile(histname,histname, BXlumiBin,BXlumiMin,BXlumiMax, TKNoMin, TKNoMax,"");
-       NumberOfTracksVsBXlumi->getTH1()->SetCanExtend(TH1::kAllAxes);
+       NumberOfTracksVsBXlumi = ibooker.bookProfile(histname,histname, BXlumiBin,BXlumiMin,BXlumiMax, TKNoMin, 3.*TKNoMax,"");
        NumberOfTracksVsBXlumi->setAxisTitle("lumi BX [10^{30}Hzcm^{-2}]",1);
        NumberOfTracksVsBXlumi->setAxisTitle("Mean number of Tracks",2);
     
@@ -590,6 +606,19 @@ void TrackingMonitor::bookHistograms(DQMStore::IBooker & ibooker,
      }
    }
   
+   if(doRegionPlots) {
+     ibooker.setCurrentFolder(MEFolderName+"/TrackBuilding");
+
+     int    regionBin = conf->getParameter<int>(   "RegionSizeBin");
+     double regionMin = conf->getParameter<double>("RegionSizeMin");
+     double regionMax = conf->getParameter<double>("RegionSizeMax");
+
+     histname = "TrackingRegionsNumberOf_"+ seedProducer.label() + "_"+ CategoryName;
+     NumberOfTrackingRegions = ibooker.book1D(histname, histname, regionBin, regionMin, regionMax);
+     NumberOfTrackingRegions->setAxisTitle("Number of TrackingRegions per Event", 1);
+     NumberOfTrackingRegions->setAxisTitle("Number of Events", 2);
+   }
+
    doTkCandPlots=conf->getParameter<bool>("doTrackCandHistos");
   //    if (doAllPlots) doTkCandPlots=true;
   
@@ -602,6 +631,12 @@ void TrackingMonitor::bookHistograms(DQMStore::IBooker & ibooker,
     NumberOfTrackCandidates = ibooker.book1D(histname, histname, TCNoBin, TCNoMin, TCNoMax);
     NumberOfTrackCandidates->setAxisTitle("Number of Track Candidates per Event", 1);
     NumberOfTrackCandidates->setAxisTitle("Number of Event", 2);
+
+    histname = "FractionOfCandOverSeeds_"+ tcProducer.label() + "_"+ CategoryName;
+    FractionCandidatesOverSeeds = ibooker.book1D(histname, histname, 101, 0., 1.01);
+    FractionCandidatesOverSeeds->setAxisTitle("Number of Track Candidates / Number of Seeds per Event", 1);
+    FractionCandidatesOverSeeds->setAxisTitle("Number of Event", 2);
+
   }
   
   theTrackBuildingAnalyzer->initHisto(ibooker,*conf);
@@ -651,7 +686,7 @@ void TrackingMonitor::bookHistograms(DQMStore::IBooker & ibooker,
 										      NTrk2DBin,NTrk2DMin,NTrk2DMax
 										      )));
       std::string title = "Number of " + ClusterLabels[i] + " Clusters";
-      if(ClusterLabels[i].compare("Tot")==0)
+      if(ClusterLabels[i]=="Tot")
 	title = "# of Clusters in (Pixel+Strip) Detectors";
       NumberOfTrkVsClusters[i]->setAxisTitle(title, 1);
       NumberOfTrkVsClusters[i]->setAxisTitle("Number of Tracks", 2);
@@ -698,7 +733,7 @@ void TrackingMonitor::analyze(const edm::Event& iEvent, const edm::EventSetup& i
     float lumi = -1.;
     edm::Handle<LumiScalersCollection> lumiScalers;
     iEvent.getByToken(lumiscalersToken_, lumiScalers);
-    if ( lumiScalers.isValid() && lumiScalers->size() ) {
+    if ( lumiScalers.isValid() && !lumiScalers->empty() ) {
       LumiScalersCollection::const_iterator scalit = lumiScalers->begin();
       lumi = scalit->instantLumi();
     } else 
@@ -844,6 +879,14 @@ void TrackingMonitor::analyze(const edm::Event& iEvent, const edm::EventSetup& i
 	  const reco::BeamSpot& bs = *recoBeamSpotHandle;      
 	  
 	  NumberOfTrackCandidates->Fill(theTCCollection.size());
+
+          // get the seed collection
+          edm::Handle<edm::View<TrajectorySeed> > seedHandle;
+          iEvent.getByToken(seedToken_, seedHandle );
+          const edm::View<TrajectorySeed>& seedCollection = *seedHandle;
+          if (seedHandle.isValid() && !seedCollection.empty()) 
+            FractionCandidatesOverSeeds->Fill(double(theTCCollection.size())/double(seedCollection.size()));
+
 	  iSetup.get<TransientRecHitRecord>().get(builderName,theTTRHBuilder);
 	  for( TrackCandidateCollection::const_iterator cand = theTCCollection.begin(); cand != theTCCollection.end(); ++cand) {
 	    
@@ -851,6 +894,26 @@ void TrackingMonitor::analyze(const edm::Event& iEvent, const edm::EventSetup& i
 	  }
 	} else {
 	  edm::LogWarning("TrackingMonitor") << "No Track Candidates in the event.  Not filling associated histograms";
+	}
+
+	if(doMVAPlots) {
+	  // Get MVA and quality mask collections
+	  std::vector<const MVACollection *> mvaCollections;
+	  std::vector<const QualityMaskCollection *> qualityMaskCollections;
+
+	  edm::Handle<edm::View<reco::Track> > htracks;
+	  iEvent.getByToken(mvaTrackToken_, htracks);
+
+	  edm::Handle<MVACollection> hmva;
+	  edm::Handle<QualityMaskCollection> hqual;
+	  for(const auto& tokenTpl: mvaQualityTokens_) {
+	    iEvent.getByToken(std::get<0>(tokenTpl), hmva);
+	    iEvent.getByToken(std::get<1>(tokenTpl), hqual);
+
+	    mvaCollections.push_back(hmva.product());
+	    qualityMaskCollections.push_back(hqual.product());
+	  }
+	  theTrackBuildingAnalyzer->analyze(*htracks, mvaCollections, qualityMaskCollections);
 	}
       }
       
@@ -861,10 +924,10 @@ void TrackingMonitor::analyze(const edm::Event& iEvent, const edm::EventSetup& i
 	// get the seed collection
 	edm::Handle<edm::View<TrajectorySeed> > seedHandle;
 	iEvent.getByToken(seedToken_, seedHandle );
-	const edm::View<TrajectorySeed>& seedCollection = *seedHandle;
 	
 	// fill the seed info
 	if (seedHandle.isValid()) {
+          const auto& seedCollection = *seedHandle;
 	  
 	  if(doAllSeedPlots || doSeedNumberPlot) {
 	    NumberOfSeeds->Fill(seedCollection.size());
@@ -882,23 +945,31 @@ void TrackingMonitor::analyze(const edm::Event& iEvent, const edm::EventSetup& i
 	  }
 	  
 	  if (doAllSeedPlots || runTrackBuildingAnalyzerForSeed){
+            edm::Handle<std::vector<SeedStopInfo> > stopHandle;
+            iEvent.getByToken(seedStopInfoToken_, stopHandle);
+            const auto& seedStopInfo = *stopHandle;
+
+            if(seedStopInfo.size() == seedCollection.size()) {
+              //here duplication of mag field and be informations is needed to allow seed and track cand histos to be independent
+              // magnetic field
+              edm::ESHandle<MagneticField> theMF;
+              iSetup.get<IdealMagneticFieldRecord>().get(theMF);
 	    
-	    //here duplication of mag field and be informations is needed to allow seed and track cand histos to be independent
-	    // magnetic field
-	    edm::ESHandle<MagneticField> theMF;
-	    iSetup.get<IdealMagneticFieldRecord>().get(theMF);  
+              // get the beam spot
+              edm::Handle<reco::BeamSpot> recoBeamSpotHandle;
+              iEvent.getByToken(bsSrcToken_, recoBeamSpotHandle);
+              const reco::BeamSpot& bs = *recoBeamSpotHandle;
 	    
-	    // get the beam spot
-	    edm::Handle<reco::BeamSpot> recoBeamSpotHandle;
-	    iEvent.getByToken(bsSrcToken_, recoBeamSpotHandle );
-	    const reco::BeamSpot& bs = *recoBeamSpotHandle;      
-	    
-	    iSetup.get<TransientRecHitRecord>().get(builderName,theTTRHBuilder);
-	    for(size_t i=0; i < seedHandle->size(); ++i) {
-	      
-	      edm::RefToBase<TrajectorySeed> seed(seedHandle, i);
-	      theTrackBuildingAnalyzer->analyze(iEvent, iSetup, *seed, bs, theMF, theTTRHBuilder);
-	    }
+              iSetup.get<TransientRecHitRecord>().get(builderName,theTTRHBuilder);
+              for(size_t i=0; i < seedCollection.size(); ++i) {
+                theTrackBuildingAnalyzer->analyze(iEvent, iSetup, seedCollection[i], seedStopInfo[i], bs, theMF, theTTRHBuilder);
+              }
+            }
+            else {
+              edm::LogWarning("TrackingMonitor") << "Seed collection size (" << seedCollection.size()
+                                                 << ") differs from seed stop info collection size (" << seedStopInfo.size()
+                                                 << "). This is a sign of inconsistency in the configuration. Not filling associated histograms.";
+            }
 	  }
 	  
 	} else {
@@ -906,6 +977,32 @@ void TrackingMonitor::analyze(const edm::Event& iEvent, const edm::EventSetup& i
 	}
       }
       
+
+      // plots for tracking regions
+      if (doRegionPlots) {
+        if(!regionToken_.isUninitialized()) {
+          edm::Handle<edm::OwnVector<TrackingRegion> > hregions;
+          iEvent.getByToken(regionToken_, hregions);
+          const auto& regions = *hregions;
+          NumberOfTrackingRegions->Fill(regions.size());
+
+          theTrackBuildingAnalyzer->analyze(regions);
+        }
+        else if(!regionLayerSetsToken_.isUninitialized()) {
+          edm::Handle<TrackingRegionsSeedingLayerSets> hregions;
+          iEvent.getByToken(regionLayerSetsToken_, hregions);
+          const auto& regions = *hregions;
+          NumberOfTrackingRegions->Fill(regions.regionsSize());
+
+          theTrackBuildingAnalyzer->analyze(regions);
+        }
+
+        if (doRegionCandidatePlots) {
+          edm::Handle<reco::CandidateView> hcandidates;
+          iEvent.getByToken(regionCandidateToken_, hcandidates);
+          theTrackBuildingAnalyzer->analyze(*hcandidates);
+        }
+      }
       
       if (doTrackerSpecific_ || doAllPlots) {
 	
@@ -965,11 +1062,11 @@ void TrackingMonitor::analyze(const edm::Event& iEvent, const edm::EventSetup& i
 	  setNclus(iEvent,NClus);
 	  for (uint  i=0; i< ClusterLabels.size(); i++){
 	    if ( doPlotsVsLUMI_ || doAllPlots )	{
-	      if (ClusterLabels[i].compare("Pix")  ==0) NumberOfPixelClustersVsLUMI->Fill(lumi,NClus[i]);
-	      if (ClusterLabels[i].compare("Strip")==0) NumberOfStripClustersVsLUMI->Fill(lumi,NClus[i]);
+	      if (ClusterLabels[i]  =="Pix") NumberOfPixelClustersVsLUMI->Fill(lumi,NClus[i]);
+	      if (ClusterLabels[i]=="Strip") NumberOfStripClustersVsLUMI->Fill(lumi,NClus[i]);
 	    }
-	    if (ClusterLabels[i].compare("Pix")  ==0) NumberOfPixelClustersVsGoodPVtx->Fill(float(totalNumGoodPV),NClus[i]);
-	    if (ClusterLabels[i].compare("Strip")==0) NumberOfStripClustersVsGoodPVtx->Fill(float(totalNumGoodPV),NClus[i]);
+	    if (ClusterLabels[i]  =="Pix") NumberOfPixelClustersVsGoodPVtx->Fill(float(totalNumGoodPV),NClus[i]);
+	    if (ClusterLabels[i]=="Strip") NumberOfStripClustersVsGoodPVtx->Fill(float(totalNumGoodPV),NClus[i]);
 	  }
 	
 	if ( doPlotsVsBXlumi_ ) {
@@ -1000,9 +1097,9 @@ void TrackingMonitor::setMaxMinBin(std::vector<double> &arrayMin,  std::vector<d
 
   for (uint i=0; i<ClusterLabels.size(); ++i) {
 
-    if     (ClusterLabels[i].compare("Pix")==0  ) {arrayMin[i]=pmin; arrayMax[i]=pmax;      arrayBin[i]=pbin;}
-    else if(ClusterLabels[i].compare("Strip")==0) {arrayMin[i]=smin; arrayMax[i]=smax;      arrayBin[i]=sbin;}
-    else if(ClusterLabels[i].compare("Tot")==0  ) {arrayMin[i]=smin; arrayMax[i]=smax+pmax; arrayBin[i]=sbin;}
+    if     (ClusterLabels[i]=="Pix"  ) {arrayMin[i]=pmin; arrayMax[i]=pmax;      arrayBin[i]=pbin;}
+    else if(ClusterLabels[i]=="Strip") {arrayMin[i]=smin; arrayMax[i]=smax;      arrayBin[i]=sbin;}
+    else if(ClusterLabels[i]=="Tot"  ) {arrayMin[i]=smin; arrayMax[i]=smax+pmax; arrayBin[i]=sbin;}
     else {edm::LogWarning("TrackingMonitor")  << "Cluster Label " << ClusterLabels[i] << " not defined, using strip parameters "; 
       arrayMin[i]=smin; arrayMax[i]=smax; arrayBin[i]=sbin;}
 
@@ -1029,9 +1126,9 @@ void TrackingMonitor::setNclus(const edm::Event& iEvent,std::vector<int> &arrayN
   arrayNclus.resize(ClusterLabels.size());
   for (uint i=0; i<ClusterLabels.size(); ++i){
     
-    if     (ClusterLabels[i].compare("Pix")==0  ) arrayNclus[i]=ncluster_pix ;
-    else if(ClusterLabels[i].compare("Strip")==0) arrayNclus[i]=ncluster_strip;
-    else if(ClusterLabels[i].compare("Tot")==0  ) arrayNclus[i]=ncluster_pix+ncluster_strip;
+    if     (ClusterLabels[i]=="Pix"  ) arrayNclus[i]=ncluster_pix ;
+    else if(ClusterLabels[i]=="Strip") arrayNclus[i]=ncluster_strip;
+    else if(ClusterLabels[i]=="Tot"  ) arrayNclus[i]=ncluster_pix+ncluster_strip;
     else {edm::LogWarning("TrackingMonitor") << "Cluster Label " << ClusterLabels[i] << " not defined using stri parametrs ";
       arrayNclus[i]=ncluster_strip ;}
   }

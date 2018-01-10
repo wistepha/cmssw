@@ -22,6 +22,7 @@ PSet script.   See notes in EventProcessor.cpp for details about it.
 #include "FWCore/Utilities/interface/EDMException.h"
 #include "FWCore/Utilities/interface/ConvertException.h"
 #include "FWCore/Utilities/interface/Presence.h"
+#include "FWCore/Utilities/interface/TimingServiceBase.h"
 
 #include "TError.h"
 
@@ -121,6 +122,8 @@ namespace {
 }
 
 int main(int argc, char* argv[]) {
+
+  edm::TimingServiceBase::jobStarted();
   
   int returnCode = 0;
   std::string context;
@@ -353,12 +356,6 @@ int main(int argc, char* argv[]) {
       context = "Calling beginJob";
       proc->beginJob();
 
-      alwaysAddContext = true;
-      context = "Calling EventProcessor::forkProcess";
-      if (!proc->forkProcess(jobReportFile)) {
-        return 0;
-      }
-
       alwaysAddContext = false;
       context = "Calling EventProcessor::runToCompletion (which does almost everything after beginJob and before endJob)";
       proc.on();
@@ -386,7 +383,7 @@ int main(int argc, char* argv[]) {
       }
     }
     if (!ex.alreadyPrinted()) {
-      if (jobRep.get() != 0) {
+      if (jobRep.get() != nullptr) {
         edm::printCmsException(ex, &(jobRep->get()), returnCode);
       }
       else {

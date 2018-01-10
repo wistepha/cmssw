@@ -58,7 +58,7 @@ class InitialClusteringStepBase {
 			  std::make_pair(thresh_E,thresh_pT2));
   }
   }
-  virtual ~InitialClusteringStepBase() { }
+  virtual ~InitialClusteringStepBase() = default;
   // get rid of things we should never use...
   InitialClusteringStepBase(const ICSB&) = delete;
   ICSB& operator=(const ICSB&) = delete;
@@ -72,7 +72,7 @@ class InitialClusteringStepBase {
 			     const std::vector<bool>& seeds, // seed flags
 			     reco::PFClusterCollection&) = 0; //output
 
-  std::ostream& operator<<(std::ostream& o) {
+  std::ostream& operator<<(std::ostream& o) const {
     o << "InitialClusteringStep with algo \"" << _algoName 
       << "\" located " << _nSeeds << " seeds and built " 
       << _nClustersFound << " clusters from those seeds. ";
@@ -95,6 +95,8 @@ class InitialClusteringStepBase {
   const std::string _algoName;
   
 };
+
+std::ostream& operator<<(std::ostream& o, const InitialClusteringStepBase& a);
 
 #include "FWCore/PluginManager/interface/PluginFactory.h"
 typedef edmplugin::PluginFactory< InitialClusteringStepBase* (const edm::ParameterSet&, edm::ConsumesCollector&) > InitialClusteringStepFactory;

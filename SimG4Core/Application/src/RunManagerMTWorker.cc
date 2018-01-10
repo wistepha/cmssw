@@ -10,6 +10,7 @@
 #include "SimG4Core/Application/interface/CustomUIsession.h"
 #include "SimG4Core/Application/interface/CustomUIsessionThreadPrefix.h"
 #include "SimG4Core/Application/interface/CustomUIsessionToFile.h"
+#include "SimG4Core/Application/interface/ExceptionHandler.h"
 
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
@@ -61,13 +62,13 @@
 
 // from https://hypernews.cern.ch/HyperNews/CMS/get/edmFramework/3302/2.html
 namespace {
-  static std::atomic<int> thread_counter{ 0 };
+  std::atomic<int> thread_counter{ 0 };
 
   int get_new_thread_index() { 
     return thread_counter++;
   }
 
-  static thread_local int s_thread_index = get_new_thread_index();
+  thread_local int s_thread_index = get_new_thread_index();
 
   int getThreadIndex() { return s_thread_index; }
 
@@ -132,7 +133,7 @@ thread_local RunManagerMTWorker::TLSData *RunManagerMTWorker::m_tls = nullptr;
 
 RunManagerMTWorker::RunManagerMTWorker(const edm::ParameterSet& iConfig, edm::ConsumesCollector&& iC):
   m_generator(iConfig.getParameter<edm::ParameterSet>("Generator")),
-  m_InToken(iC.consumes<edm::HepMCProduct>(iConfig.getParameter<edm::ParameterSet>("Generator").getParameter<std::string>("HepMCProductLabel"))),
+  m_InToken(iC.consumes<edm::HepMCProduct>(iConfig.getParameter<edm::ParameterSet>("Generator").getParameter<edm::InputTag>("HepMCProductLabel"))),
   m_theLHCTlinkToken(iC.consumes<edm::LHCTransportLinkContainer>(iConfig.getParameter<edm::InputTag>("theLHCTlinkTag"))),
   m_nonBeam(iConfig.getParameter<bool>("NonBeamEvent")),
   m_pUseMagneticField(iConfig.getParameter<bool>("UseMagneticField")),
@@ -147,6 +148,7 @@ RunManagerMTWorker::RunManagerMTWorker(const edm::ParameterSet& iConfig, edm::Co
   m_p(iConfig)
 {
   initializeTLS();
+  m_simEvent.reset(nullptr);
   m_sVerbose.reset(nullptr);
   std::vector<edm::ParameterSet> watchers = 
     iConfig.getParameter<std::vector<edm::ParameterSet> >("Watchers");
@@ -214,6 +216,9 @@ void RunManagerMTWorker::initializeThread(RunManagerMT& runManagerMaster, const 
   // Create worker run manager
   m_tls->kernel = G4WorkerRunManagerKernel::GetRunManagerKernel();
   if(!m_tls->kernel) { m_tls->kernel = new G4WorkerRunManagerKernel(); }
+
+  // Define G4 exception handler
+  G4StateManager::GetStateManager()->SetExceptionHandler(new ExceptionHandler());
 
   // Set the geometry for the worker, share from master
   DDDWorld::WorkerSetAsWorld(runManagerMaster.world().GetWorldVolumeForWorker());

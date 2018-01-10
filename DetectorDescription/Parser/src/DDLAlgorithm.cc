@@ -1,10 +1,5 @@
 #include "DetectorDescription/Parser/src/DDLAlgorithm.h"
-
-#include <stddef.h>
-#include <map>
-#include <utility>
-
-#include "DetectorDescription/Algorithm/interface/DDAlgorithmHandler.h"
+#include "DetectorDescription/Core/interface/DDAlgorithmHandler.h"
 #include "DetectorDescription/Core/interface/DDTypes.h"
 #include "DetectorDescription/Core/interface/DDLogicalPart.h"
 #include "DetectorDescription/Core/interface/DDName.h"
@@ -13,6 +8,10 @@
 #include "DetectorDescription/Parser/src/DDLMap.h"
 #include "DetectorDescription/Parser/src/DDLVector.h"
 #include "DetectorDescription/Parser/src/DDXMLElement.h"
+
+#include <cstddef>
+#include <map>
+#include <utility>
 
 class DDCompactView;
 

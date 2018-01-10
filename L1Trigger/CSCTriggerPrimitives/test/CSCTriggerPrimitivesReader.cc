@@ -22,24 +22,24 @@
 //-------------------------------
 
 #include "FWCore/Framework/interface/ConsumesCollector.h"
-#include <FWCore/Framework/interface/MakerMacros.h>
-#include <DataFormats/Common/interface/Handle.h>
-#include <FWCore/Framework/interface/ESHandle.h>
-#include <FWCore/MessageLogger/interface/MessageLogger.h>
+#include "FWCore/Framework/interface/MakerMacros.h"
+#include "DataFormats/Common/interface/Handle.h"
+#include "FWCore/Framework/interface/ESHandle.h"
+#include "FWCore/MessageLogger/interface/MessageLogger.h"
 
-#include <Geometry/Records/interface/MuonGeometryRecord.h>
+#include "Geometry/Records/interface/MuonGeometryRecord.h"
 
 #include "CondFormats/CSCObjects/interface/CSCBadChambers.h"
 #include "CondFormats/DataRecord/interface/CSCBadChambersRcd.h"
 
 // MC data
-#include <SimDataFormats/GeneratorProducts/interface/HepMCProduct.h>
+#include "SimDataFormats/GeneratorProducts/interface/HepMCProduct.h"
 
 // MC tests
-#include <L1Trigger/CSCTriggerPrimitives/test/CSCAnodeLCTAnalyzer.h>
-#include <L1Trigger/CSCTriggerPrimitives/test/CSCCathodeLCTAnalyzer.h>
-#include <Geometry/CSCGeometry/interface/CSCLayer.h>
-#include <Geometry/CSCGeometry/interface/CSCGeometry.h>
+#include "L1Trigger/CSCTriggerPrimitives/test/CSCAnodeLCTAnalyzer.h"
+#include "L1Trigger/CSCTriggerPrimitives/test/CSCCathodeLCTAnalyzer.h"
+#include "Geometry/CSCGeometry/interface/CSCLayer.h"
+#include "Geometry/CSCGeometry/interface/CSCGeometry.h"
 
 #include "TCanvas.h"
 #include "TFile.h"
@@ -2294,7 +2294,7 @@ void CSCTriggerPrimitivesReader::drawALCTHistos() {
   TText t;
   t.SetTextFont(32);
   t.SetTextSize(0.025);
-  char pagenum[7], titl[50];
+  char pagenum[16], titl[50];
   TPaveLabel *title;
 
   int max_idh = plotME42 ? CSC_TYPES : CSC_TYPES-1;
@@ -2368,7 +2368,7 @@ void CSCTriggerPrimitivesReader::drawCLCTHistos() {
   TText t;
   t.SetTextFont(32);
   t.SetTextSize(0.025);
-  char pagenum[7], titl[50];
+  char pagenum[16], titl[50];
   TPaveLabel *title;
 
   ps->NewPage();
@@ -2537,7 +2537,7 @@ void CSCTriggerPrimitivesReader::drawLCTTMBHistos() {
   TText t;
   t.SetTextFont(32);
   t.SetTextSize(0.025);
-  char pagenum[7], titl[50];
+  char pagenum[16], titl[50];
   TPaveLabel *title;
 
   int max_idh = plotME42 ? CSC_TYPES : CSC_TYPES-1;
@@ -2634,7 +2634,7 @@ void CSCTriggerPrimitivesReader::drawLCTMPCHistos() {
   TText t;
   t.SetTextFont(32);
   t.SetTextSize(0.025);
-  char pagenum[7];
+  char pagenum[16];
   TPaveLabel *title;
 
   ps->NewPage();
@@ -2707,7 +2707,7 @@ void CSCTriggerPrimitivesReader::drawCompHistos() {
   TText t;
   t.SetTextFont(32);
   t.SetTextSize(0.025);
-  char pagenum[7];
+  char pagenum[16];
   TPaveLabel *title;
   Int_t nbins;
 
@@ -3045,7 +3045,7 @@ void CSCTriggerPrimitivesReader::drawResolHistos() {
   TText t;
   t.SetTextFont(32);
   t.SetTextSize(0.025);
-  char pagenum[7];
+  char pagenum[16];
   TPaveLabel *title;
 
   int max_idh = plotME42 ? CSC_TYPES : CSC_TYPES-1;
@@ -3422,7 +3422,7 @@ void CSCTriggerPrimitivesReader::drawEfficHistos() {
   TText t;
   t.SetTextFont(32);
   t.SetTextSize(0.025);
-  char pagenum[7];
+  char pagenum[16];
   TPaveLabel *title;
   char histtitle[60];
   

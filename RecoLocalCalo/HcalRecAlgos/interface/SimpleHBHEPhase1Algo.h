@@ -12,7 +12,7 @@
 
 #include "RecoLocalCalo/HcalRecAlgos/interface/PulseShapeFitOOTPileupCorrection.h"
 #include "RecoLocalCalo/HcalRecAlgos/interface/HcalDeterministicFit.h"
-
+#include "RecoLocalCalo/HcalRecAlgos/interface/MahiFit.h"
 
 class SimpleHBHEPhase1Algo : public AbsHBHEPhase1Algo
 {
@@ -45,17 +45,18 @@ public:
                          float timeShift,
                          bool correctForPhaseContainment,
                          std::unique_ptr<PulseShapeFitOOTPileupCorrection> m2,
-                         std::unique_ptr<HcalDeterministicFit> detFit);
+                         std::unique_ptr<HcalDeterministicFit> detFit,
+			 std::unique_ptr<MahiFit> mahi);
 
-    inline virtual ~SimpleHBHEPhase1Algo() {}
+    inline ~SimpleHBHEPhase1Algo() override {}
 
     // Methods to override from the base class
-    virtual void beginRun(const edm::Run&, const edm::EventSetup&) override;
-    virtual void endRun() override;
+    void beginRun(const edm::Run&, const edm::EventSetup&) override;
+    void endRun() override;
 
-    inline virtual bool isConfigurable() const override {return false;}
+    inline bool isConfigurable() const override {return false;}
 
-    virtual HBHERecHit reconstruct(const HBHEChannelInfo& info,
+    HBHERecHit reconstruct(const HBHEChannelInfo& info,
                                    const HcalRecoParam* params,
                                    const HcalCalibrations& calibs,
                                    bool isRealData) override;
@@ -100,6 +101,9 @@ private:
 
     // "Metod 3" algorithm
     std::unique_ptr<HcalDeterministicFit> hltOOTpuCorr_;
+
+    // Mahi algorithm
+    std::unique_ptr<MahiFit> mahiOOTpuCorr_;
 
     HcalPulseShapes theHcalPulseShapes_;
 };

@@ -34,7 +34,7 @@
 
 // helper files
 #include <iostream>
-#include <stdlib.h>
+#include <cstdlib>
 #include <string>
 #include <memory>
 #include <vector>
@@ -53,20 +53,20 @@ class EDMtoMEConverter : public edm::EDAnalyzer
  public:
 
   explicit EDMtoMEConverter(const edm::ParameterSet&);
-  virtual ~EDMtoMEConverter();
-  virtual void beginJob();
-  virtual void endJob();  
-  virtual void analyze(const edm::Event&, const edm::EventSetup&);
-  virtual void beginRun(const edm::Run&, const edm::EventSetup&);
-  virtual void endRun(const edm::Run&, const edm::EventSetup&);
-  virtual void beginLuminosityBlock(const edm::LuminosityBlock&, const edm::EventSetup&);
-  virtual void endLuminosityBlock(const edm::LuminosityBlock&, const edm::EventSetup&);
-  virtual void respondToOpenInputFile(const edm::FileBlock&);
+  ~EDMtoMEConverter() override;
+  void beginJob() override;
+  void endJob() override;  
+  void analyze(const edm::Event&, const edm::EventSetup&) override;
+  void beginRun(const edm::Run&, const edm::EventSetup&) override;
+  void endRun(const edm::Run&, const edm::EventSetup&) override;
+  void beginLuminosityBlock(const edm::LuminosityBlock&, const edm::EventSetup&) override;
+  void endLuminosityBlock(const edm::LuminosityBlock&, const edm::EventSetup&) override;
+  void respondToOpenInputFile(const edm::FileBlock&) override;
 
   template <class T>
   void getData(T& iGetFrom);
 
-  typedef std::vector<uint32_t> TagList;
+  using TagList = std::vector<uint32_t>;
 
  private:
   
@@ -89,7 +89,7 @@ class EDMtoMEConverter : public edm::EDAnalyzer
     using type = T;
     using Product = MEtoEDM<T>;
 
-    Tokens() {}
+    Tokens() = default;
 
     void set(const edm::InputTag& runInputTag, const edm::InputTag& lumiInputTag, edm::ConsumesCollector& iC);
 

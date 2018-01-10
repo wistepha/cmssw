@@ -50,13 +50,13 @@ class HitEff : public edm::EDAnalyzer {
   double checkConsistency(const StripClusterParameterEstimator::LocalValues& parameters, double xx, double xerr);
   bool isDoubleSided(unsigned int iidd, const TrackerTopology* tTopo) const;
   bool check2DPartner(unsigned int iidd, const std::vector<TrajectoryMeasurement>& traj);
-  virtual ~HitEff();
+  ~HitEff() override;
   unsigned int checkLayer(unsigned int iidd, const TrackerTopology* tTopo);
 
  private:
-  virtual void beginJob();
-  virtual void endJob(); 
-  virtual void analyze(const edm::Event& e, const edm::EventSetup& c);
+  void beginJob() override;
+  void endJob() override; 
+  void analyze(const edm::Event& e, const edm::EventSetup& c) override;
 
         // ----------member data ---------------------------
 
@@ -65,7 +65,9 @@ class HitEff : public edm::EDAnalyzer {
   
   bool addLumi_;
   bool addCommonMode_;
-
+  bool cutOnTracks_;
+  unsigned int trackMultiplicityCut_;
+  
   const edm::EDGetTokenT< reco::TrackCollection > combinatorialTracks_token_;
   const edm::EDGetTokenT< std::vector<Trajectory> > trajectories_token_;
   const edm::EDGetTokenT< edmNew::DetSetVector<SiStripCluster> > clusters_token_;

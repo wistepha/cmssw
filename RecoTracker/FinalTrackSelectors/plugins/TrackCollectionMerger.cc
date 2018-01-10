@@ -36,7 +36,8 @@ namespace {
       m_shareFrac(conf.getParameter<double>("shareFrac")),
       m_minShareHits(conf.getParameter<unsigned int>("minShareHits")),
       m_minQuality(reco::TrackBase::qualityByName(conf.getParameter<std::string>("minQuality"))),
-      m_allowFirstHitShare(conf.getParameter<bool>("allowFirstHitShare"))
+      m_allowFirstHitShare(conf.getParameter<bool>("allowFirstHitShare")),
+      m_enableMerging(conf.getParameter<bool>("enableMerging"))
 {
       for (auto const & it : conf.getParameter<std::vector<edm::InputTag> >("trackProducers") )
 	srcColls.emplace_back(it,consumesCollector());
@@ -63,6 +64,7 @@ namespace {
       desc.add<double>("lostHitPenalty",5.);
       desc.add<unsigned int>("minShareHits",2);
       desc.add<bool>("allowFirstHitShare",true);
+      desc.add<bool>("enableMerging",true);
       desc.add<std::string>("minQuality","loose");
       TrackCollectionCloner::fill(desc);
       descriptions.add("TrackCollectionMerger", desc);
@@ -91,8 +93,9 @@ namespace {
     unsigned int m_minShareHits;
     reco::TrackBase::TrackQuality m_minQuality;
     bool  m_allowFirstHitShare;
+    bool  m_enableMerging;
     
-    virtual void produce(edm::StreamID, edm::Event& evt, const edm::EventSetup&) const override;
+    void produce(edm::StreamID, edm::Event& evt, const edm::EventSetup&) const override;
     
 
     bool areDuplicate(IHitV const& rh1, IHitV const& rh2) const;
@@ -126,7 +129,8 @@ namespace {
 
 
     unsigned char qualMask = ~0;
-    if (m_minQuality!=reco::TrackBase::undefQuality) qualMask = 1<<m_minQuality; 
+    const bool acceptAll = m_minQuality==reco::TrackBase::undefQuality;
+    if (!acceptAll) qualMask = 1<<m_minQuality;
     
     
     // load tracks
@@ -144,7 +148,7 @@ namespace {
       edm::Handle<QualityMaskCollection> hqual;
       evt.getByToken(srcQuals[i], hqual);
       for (auto j=0U; j<size; ++j) {
-	if (! (qualMask&(* hqual)[j]) ) continue;
+	if (! (acceptAll || (qualMask&(* hqual)[j]) ) ) continue;
 	mvas[k]=(*hmva)[j];
 	quals[k] = (*hqual)[j];
 	tkInds[k]=j;
@@ -252,7 +256,8 @@ namespace {
     }; // end merger;
 
 
-    if (collsSize>1) merger();
+    const bool doMerging = m_enableMerging && collsSize>1;
+    if (doMerging) merger();
     
     // products
     auto pmvas = std::make_unique<MVACollection>();
@@ -281,12 +286,14 @@ namespace {
       assert(tid.size()==nsel-isel);
       auto k=0U;
       for (;isel<nsel;++isel) {
-	auto & otk = (*producer.selTracks_)[isel];
-	otk.setQualityMask((*pquals)[isel]);
-	otk.setOriginalAlgorithm(oriAlgo[tid[k]]);
-	otk.setAlgoMask(algoMask[tid[k++]]);
+        auto & otk = (*producer.selTracks_)[isel];
+        otk.setQualityMask((*pquals)[isel]);       // needed also without merging
+        if(doMerging) {
+          otk.setOriginalAlgorithm(oriAlgo[tid[k]]);
+          otk.setAlgoMask(algoMask[tid[k++]]);
+        }
       }
-      assert(tid.size()==k);
+      if(doMerging) assert(tid.size()==k);
     }
 
     assert(producer.selTracks_->size()==pmvas->size());

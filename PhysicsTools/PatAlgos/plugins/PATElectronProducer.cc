@@ -71,10 +71,13 @@ PATElectronProducer::PATElectronProducer(const edm::ParameterSet & iConfig) :
   embedRecHits_(iConfig.getParameter<bool>( "embedRecHits" )),
   // pflow configurables
   useParticleFlow_(iConfig.getParameter<bool>( "useParticleFlow" )),
-  pfElecToken_(consumes<reco::PFCandidateCollection>(iConfig.getParameter<edm::InputTag>( "pfElectronSource" ))),
-  pfCandidateMapToken_(mayConsume<edm::ValueMap<reco::PFCandidatePtr> >(iConfig.getParameter<edm::InputTag>( "pfCandidateMap" ))),
+  usePfCandidateMultiMap_(iConfig.getParameter<bool>( "usePfCandidateMultiMap" )),
+  pfElecToken_(!usePfCandidateMultiMap_ ? consumes<reco::PFCandidateCollection>(iConfig.getParameter<edm::InputTag>( "pfElectronSource" )) : edm::EDGetTokenT<reco::PFCandidateCollection>()),
+  pfCandidateMapToken_(!usePfCandidateMultiMap_ ? mayConsume<edm::ValueMap<reco::PFCandidatePtr> >(iConfig.getParameter<edm::InputTag>( "pfCandidateMap" )) : edm::EDGetTokenT<edm::ValueMap<reco::PFCandidatePtr>>()),
+  pfCandidateMultiMapToken_(usePfCandidateMultiMap_ ? consumes<edm::ValueMap<std::vector<reco::PFCandidateRef>>>(iConfig.getParameter<edm::InputTag>( "pfCandidateMultiMap" )) : edm::EDGetTokenT<edm::ValueMap<std::vector<reco::PFCandidateRef>>>()),
   embedPFCandidate_(iConfig.getParameter<bool>( "embedPFCandidate" )),
   // mva input variables
+  addMVAVariables_(iConfig.getParameter<bool>("addMVAVariables")),
   reducedBarrelRecHitCollection_(iConfig.getParameter<edm::InputTag>("reducedBarrelRecHitCollection")),
   reducedBarrelRecHitCollectionToken_(mayConsume<EcalRecHitCollection>(reducedBarrelRecHitCollection_)),
   reducedEndcapRecHitCollection_(iConfig.getParameter<edm::InputTag>("reducedEndcapRecHitCollection")),
@@ -196,6 +199,9 @@ PATElectronProducer::PATElectronProducer(const edm::ParameterSet & iConfig) :
     userDataHelper_ = PATUserDataHelper<Electron>(iConfig.getParameter<edm::ParameterSet>("userData"), consumesCollector());
   }
   
+  // consistency check
+  if (useParticleFlow_ && usePfCandidateMultiMap_) throw cms::Exception("Configuration", "usePfCandidateMultiMap not supported when useParticleFlow is set to true");
+ 
   // produces vector of muons
   produces<std::vector<Electron> >();
   }
@@ -396,7 +402,7 @@ void PATElectronProducer::produce(edm::Event & iEvent, const edm::EventSetup & i
 	  // embed high level selection
 	  if ( embedHighLevelSelection_ ) {
 	    // get the global track
-	    reco::GsfTrackRef track = PfTk;
+	    const reco::GsfTrackRef& track = PfTk;
 
 	    // Make sure the collection it points to is there
 	    if ( track.isNonnull() && track.isAvailable() ) {
@@ -428,9 +434,11 @@ void PATElectronProducer::produce(edm::Event & iEvent, const edm::EventSetup & i
 	    anElectron.setElectronIDs(ids);
 	  }
 
-          // add missing mva variables
-          std::vector<float> vCov = lazyTools.localCovariances(*( itElectron->superCluster()->seed()));
-          anElectron.setMvaVariables(vCov[1], ip3d);
+          if (addMVAVariables_) {
+            // add missing mva variables
+            std::vector<float> vCov = lazyTools.localCovariances(*( itElectron->superCluster()->seed()));
+            anElectron.setMvaVariables(vCov[1], ip3d);
+          }
 	  // PFClusterIso
 	  if (addPFClusterIso_) {
 	    // Get PFCluster Isolation
@@ -550,12 +558,16 @@ void PATElectronProducer::produce(edm::Event & iEvent, const edm::EventSetup & i
   }
 
   else{
-    // Try to access PF electron collection
-    edm::Handle<edm::ValueMap<reco::PFCandidatePtr> >ValMapH;
-    bool valMapPresent = iEvent.getByToken(pfCandidateMapToken_,ValMapH);
-    // Try to access a PFCandidate collection, as supplied by the user
-    edm::Handle< reco::PFCandidateCollection >  pfElectrons;
-    bool pfCandsPresent = iEvent.getByToken(pfElecToken_, pfElectrons);
+    edm::Handle<reco::PFCandidateCollection>  pfElectrons;
+    edm::Handle<edm::ValueMap<reco::PFCandidatePtr>> ValMapH;
+    edm::Handle<edm::ValueMap<std::vector<reco::PFCandidateRef>>> ValMultiMapH;
+    bool pfCandsPresent = false, valMapPresent = false;
+    if (usePfCandidateMultiMap_) {
+        iEvent.getByToken(pfCandidateMultiMapToken_, ValMultiMapH);
+    } else {
+        pfCandsPresent = iEvent.getByToken(pfElecToken_, pfElectrons);
+        valMapPresent = iEvent.getByToken(pfCandidateMapToken_,ValMapH);
+    }
 
     for (edm::View<reco::GsfElectron>::const_iterator itElectron = electrons->begin(); itElectron != electrons->end(); ++itElectron) {
       // construct the Electron from the ref -> save ref to original object
@@ -569,7 +581,15 @@ void PATElectronProducer::produce(edm::Event & iEvent, const edm::EventSetup & i
       // Is this GsfElectron also identified as an e- in the particle flow?
       bool pfId = false;
 
-      if ( pfCandsPresent ) {
+      if (usePfCandidateMultiMap_) {
+        for (const reco::PFCandidateRef& pf : (*ValMultiMapH)[elePtr]) {
+            if (pf->particleId() == reco::PFCandidate::e) {
+                pfId = true;
+                anElectron.setPFCandidateRef( pf );
+                break;
+            }
+        }
+      } else if ( pfCandsPresent ) {
 	// PF electron collection not available.
 	const reco::GsfTrackRef& trkRef = itElectron->gsfTrack();
 	int index = 0;
@@ -650,9 +670,11 @@ void PATElectronProducer::produce(edm::Event & iEvent, const edm::EventSetup & i
 	}
       }
 
-      // add mva variables
-      std::vector<float> vCov = lazyTools.localCovariances(*( itElectron->superCluster()->seed()));
-      anElectron.setMvaVariables(vCov[1], ip3d);
+      if (addMVAVariables_) {
+        // add mva variables
+        std::vector<float> vCov = lazyTools.localCovariances(*( itElectron->superCluster()->seed()));
+        anElectron.setMvaVariables(vCov[1], ip3d);
+      }
       // PFCluster Isolation
       if (addPFClusterIso_) {
 	// Get PFCluster Isolation
@@ -1007,6 +1029,11 @@ void PATElectronProducer::fillDescriptions(edm::ConfigurationDescriptions & desc
 
   // pf specific parameters
   iDesc.add<edm::InputTag>("pfElectronSource", edm::InputTag("pfElectrons"))->setComment("particle flow input collection");
+  auto && usePfCandidateMultiMap = edm::ParameterDescription<bool>("usePfCandidateMultiMap", false, true);
+  usePfCandidateMultiMap.setComment("take ParticleFlow candidates from pfCandidateMultiMap instead of matching to pfElectrons by Gsf track reference");
+  iDesc.ifValue(usePfCandidateMultiMap,
+    true  >> edm::ParameterDescription<edm::InputTag>("pfCandidateMultiMap", true) or
+    false >> edm::EmptyGroupDescription());
   iDesc.add<bool>("useParticleFlow", false)->setComment("whether to use particle flow or not");
   iDesc.add<bool>("embedPFCandidate", false)->setComment("embed external particle flow object");
 
@@ -1088,7 +1115,7 @@ void PATElectronProducer::fillDescriptions(edm::ConfigurationDescriptions & desc
 
 
   // electron shapes
-  iDesc.add<bool>("addElectronShapes", true);
+  iDesc.add<bool>("addMVAVariables", true)->setComment("embed extra variables in pat::Electron : sip3d, sigmaIEtaIPhi");
   iDesc.add<edm::InputTag>("reducedBarrelRecHitCollection", edm::InputTag("reducedEcalRecHitsEB"));
   iDesc.add<edm::InputTag>("reducedEndcapRecHitCollection", edm::InputTag("reducedEcalRecHitsEE"));
 
@@ -1174,6 +1201,9 @@ void PATElectronProducer::embedHighLevel( pat::Electron & anElectron,
   d0_corr = result.second.value();
   d0_err = beamspotIsValid ? result.second.error() : -1.0;
   anElectron.setDB( d0_corr, d0_err, pat::Electron::BS3D);
+
+    // PVDZ
+  anElectron.setDB( track->dz(primaryVertex.position()), std::hypot(track->dzError(), primaryVertex.zError()), pat::Electron::PVDZ );
 }
 
 #include "FWCore/Framework/interface/MakerMacros.h"

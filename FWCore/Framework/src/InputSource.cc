@@ -9,10 +9,7 @@
 #include "FWCore/Framework/interface/ExceptionHelpers.h"
 #include "FWCore/Framework/interface/FileBlock.h"
 #include "FWCore/Framework/interface/InputSourceDescription.h"
-#include "FWCore/Framework/interface/LuminosityBlock.h"
 #include "FWCore/Framework/interface/LuminosityBlockPrincipal.h"
-#include "FWCore/Framework/interface/MessageReceiverForSource.h"
-#include "FWCore/Framework/interface/Run.h"
 #include "FWCore/Framework/interface/RunPrincipal.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
@@ -45,7 +42,6 @@ namespace edm {
   }
 
   InputSource::InputSource(ParameterSet const& pset, InputSourceDescription const& desc) :
-      ProductRegistryHelper(),
       actReg_(desc.actReg_),
       maxEvents_(desc.maxEvents_),
       remainingEvents_(maxEvents_),
@@ -68,7 +64,6 @@ namespace edm {
       runAuxiliary_(),
       lumiAuxiliary_(),
       statusFileName_(),
-      receiver_(),
       numberOfEventsBeforeBigSkip_(0) {
 
     if(pset.getUntrackedParameter<bool>("writeStatusFile", false)) {
@@ -131,26 +126,6 @@ namespace edm {
     "'RunsAndLumis':       process runs and lumis (not events).\n"
     "'Runs':               process runs (not lumis or events).");
     desc.addUntracked<bool>("writeStatusFile", false)->setComment("Write a status file. Intended for use by workflow management.");
-  }
-
-  bool
-  InputSource::skipForForking() {
-    if(eventLimitReached()) {
-      return false;
-    }
-    if(receiver_ && 0 == numberOfEventsBeforeBigSkip_) {
-      receiver_->receive();
-      unsigned long toSkip = receiver_->numberToSkip();
-      if(0 != toSkip) {
-        skipEvents(toSkip);
-        decreaseRemainingEventsBy(toSkip);
-      }
-      numberOfEventsBeforeBigSkip_ = receiver_->numberOfConsecutiveIndices();
-      if(0 == numberOfEventsBeforeBigSkip_ or 0 == remainingEvents() or 0 == remainingLuminosityBlocks()) {
-        return false;
-      }
-    }
-    return true;
   }
 
   // This next function is to guarantee that "runs only" mode does not return events or lumis,
@@ -257,9 +232,6 @@ namespace edm {
 
   void
   InputSource::registerProducts() {
-    if(!typeLabelList().empty()) {
-      addToRegistry(typeLabelList().begin(), typeLabelList().end(), moduleDescription(), productRegistryUpdate());
-    }
   }
 
   // Return a dummy file block.
@@ -340,9 +312,6 @@ namespace edm {
       EventSourceSentry sentry(*this, streamContext);
 
       callWithTryCatchAndPrint<void>( [this,&ep](){ readEvent_(ep); }, "Calling InputSource::readEvent_" );
-      if(receiver_) {
-        --numberOfEventsBeforeBigSkip_;
-      }
     }
 
     if(remainingEvents_ > 0) --remainingEvents_;
@@ -389,11 +358,6 @@ namespace edm {
     setNewLumi();
     resetEventCached();
     callWithTryCatchAndPrint<void>( [this](){ rewind_(); }, "Calling InputSource::rewind_" );
-    if(receiver_) {
-      unsigned int numberToSkip = receiver_->numberToSkip();
-      skip(numberToSkip);
-      decreaseRemainingEventsBy(numberToSkip);
-    }
   }
 
   void
@@ -442,7 +406,7 @@ namespace edm {
   InputSource::skip(int) {
     throw Exception(errors::LogicError)
       << "InputSource::skip()\n"
-      << "Forking and random access are not implemented for this type of Input Source\n"
+      << "Random access are not implemented for this type of Input Source\n"
       << "Contact a Framework Developer\n";
   }
 
@@ -459,7 +423,7 @@ namespace edm {
   InputSource::rewind_() {
     throw Exception(errors::LogicError)
       << "InputSource::rewind()\n"
-      << "Forking and random access are not implemented for this type of Input Source\n"
+      << "Random access are not implemented for this type of Input Source\n"
       << "Contact a Framework Developer\n";
   }
 
@@ -477,41 +441,18 @@ namespace edm {
 
   void
   InputSource::doBeginRun(RunPrincipal& rp, ProcessContext const* ) {
-    Run run(rp, moduleDescription(), nullptr);
-    callWithTryCatchAndPrint<void>( [this,&run](){ beginRun(run); }, "Calling InputSource::beginRun" );
-    run.commit_(std::vector<edm::ProductResolverIndex>());
   }
 
   void
   InputSource::doEndRun(RunPrincipal& rp, bool cleaningUpAfterException, ProcessContext const* ) {
-    Run run(rp, moduleDescription(), nullptr);
-    callWithTryCatchAndPrint<void>( [this,&run](){ endRun(run); }, "Calling InputSource::endRun", cleaningUpAfterException );
-    run.commit_(std::vector<edm::ProductResolverIndex>());
   }
 
   void
   InputSource::doBeginLumi(LuminosityBlockPrincipal& lbp, ProcessContext const* ) {
-    LuminosityBlock lb(lbp, moduleDescription(), nullptr);
-    callWithTryCatchAndPrint<void>( [this,&lb](){ beginLuminosityBlock(lb); }, "Calling InputSource::beginLuminosityBlock" );
-    lb.commit_(std::vector<edm::ProductResolverIndex>());
   }
 
   void
   InputSource::doEndLumi(LuminosityBlockPrincipal& lbp, bool cleaningUpAfterException, ProcessContext const* ) {
-    LuminosityBlock lb(lbp, moduleDescription(), nullptr);
-    callWithTryCatchAndPrint<void>( [this,&lb](){ endLuminosityBlock(lb); }, "Calling InputSource::endLuminosityBlock", cleaningUpAfterException );
-    lb.commit_(std::vector<edm::ProductResolverIndex>());
-  }
-
-  void
-  InputSource::doPreForkReleaseResources() {
-    callWithTryCatchAndPrint<void>( [this](){ preForkReleaseResources(); }, "Calling InputSource::preForkReleaseResources" );
-  }
-
-  void
-  InputSource::doPostForkReacquireResources(std::shared_ptr<multicore::MessageReceiverForSource> iReceiver) {
-    callWithTryCatchAndPrint<void>( [this, &iReceiver](){ postForkReacquireResources(iReceiver); },
-                                    "Calling InputSource::postForkReacquireResources" );
   }
 
   bool
@@ -533,33 +474,10 @@ namespace edm {
   }
 
   void
-  InputSource::beginLuminosityBlock(LuminosityBlock&) {}
-
-  void
-  InputSource::endLuminosityBlock(LuminosityBlock&) {}
-
-  void
-  InputSource::beginRun(Run&) {}
-
-  void
-  InputSource::endRun(Run&) {}
-
-  void
   InputSource::beginJob() {}
 
   void
   InputSource::endJob() {}
-
-  void
-  InputSource::preForkReleaseResources() {}
-
-  void
-  InputSource::postForkReacquireResources(std::shared_ptr<multicore::MessageReceiverForSource> iReceiver) {
-    receiver_ = iReceiver;
-    receiver_->receive();
-    numberOfEventsBeforeBigSkip_ = receiver_->numberOfConsecutiveIndices();
-    rewind();
-  }
 
   bool
   InputSource::randomAccess_() const {

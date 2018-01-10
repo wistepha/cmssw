@@ -93,8 +93,8 @@ MultiHitGeneratorFromChi2::MultiHitGeneratorFromChi2(const edm::ParameterSet& cf
     useSimpleMF_ = true;
     mfName_ = cfg.getParameter<std::string>("SimpleMagneticField");
   }
-  filter = 0;
-  bfield = 0;
+  filter = nullptr;
+  bfield = nullptr;
   nomField = -1.;
 }
 
@@ -198,7 +198,7 @@ void MultiHitGeneratorFromChi2::hitSets(const TrackingRegion& region, OrderedMul
                                         cacheHits& refittedHitStorage) {
   int size = thirdLayers.size();
   const RecHitsSortedInPhi * thirdHitMap[size];
-  vector<const DetLayer *> thirdLayerDetLayer(size,0);
+  vector<const DetLayer *> thirdLayerDetLayer(size,nullptr);
   for (int il=0; il<size; ++il) 
     {
       thirdHitMap[il] = &layerCache(thirdLayers[il], region, es);
@@ -276,7 +276,7 @@ void MultiHitGeneratorFromChi2::hitSets(const TrackingRegion& region, OrderedMul
             auto angle = layer3.phi(i);
 	    auto myz = layer3.v[i];
 #ifdef EDM_ML_DEBUG
-             IfLogTrace(layer3.hit(i)->rawId()==debug_Id2, "MultiHitGeneratorFromChi2") << "filling KDTree with hit in id=" << debug_Id2
+             IfLogTrace(hi->hit()->rawId()==debug_Id2, "MultiHitGeneratorFromChi2") << "filling KDTree with hit in id=" << debug_Id2
                                                                                    << " with pos: " << hi->hit()->globalPosition()
                                                                                    << " phi=" << hi->hit()->globalPosition().phi()
                                                                                    << " z=" << hi->hit()->globalPosition().z()
@@ -665,7 +665,7 @@ void MultiHitGeneratorFromChi2::refit2Hits(HitOwnPtr & hit1,
 					   const TrackingRegion& region, float nomField, bool isDebug) {
 
   //these need to be sorted in R
-  GlobalPoint gp0 = region.origin();
+  const GlobalPoint& gp0 = region.origin();
   GlobalPoint gp1 = hit1->globalPosition();
   GlobalPoint gp2 = hit2->globalPosition();
 

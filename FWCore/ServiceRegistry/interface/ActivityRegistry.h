@@ -700,6 +700,22 @@ namespace edm {
       }
       AR_WATCH_USING_METHOD_2(watchPostModuleEvent)
 
+      /// signal is emitted before the module starts the acquire method for the Event
+      typedef signalslot::Signal<void(StreamContext const&, ModuleCallingContext const&)> PreModuleEventAcquire;
+      PreModuleEventAcquire preModuleEventAcquireSignal_;
+      void watchPreModuleEventAcquire(PreModuleEventAcquire::slot_type const& iSlot) {
+         preModuleEventAcquireSignal_.connect(iSlot);
+      }
+      AR_WATCH_USING_METHOD_2(watchPreModuleEventAcquire)
+
+      /// signal is emitted after the module finishes the acquire method for the Event
+      typedef signalslot::Signal<void(StreamContext const&, ModuleCallingContext const&)> PostModuleEventAcquire;
+      PostModuleEventAcquire postModuleEventAcquireSignal_;
+      void watchPostModuleEventAcquire(PostModuleEventAcquire::slot_type const& iSlot) {
+         postModuleEventAcquireSignal_.connect_front(iSlot);
+      }
+      AR_WATCH_USING_METHOD_2(watchPostModuleEventAcquire)
+
       /// signal is emitted after the module starts processing the Event and before a delayed get has started
       typedef signalslot::Signal<void(StreamContext const&, ModuleCallingContext const&)> PreModuleEventDelayedGet;
       PreModuleEventDelayedGet preModuleEventDelayedGetSignal_;
@@ -953,22 +969,6 @@ namespace edm {
       // WARNING - ModuleDescription is not in fixed place.  See note M above.
       AR_WATCH_USING_METHOD_1(watchPostSourceConstruction)
 
-      /// signal is emitted before we fork the processes
-      typedef signalslot::Signal<void()> PreForkReleaseResources;
-      PreForkReleaseResources preForkReleaseResourcesSignal_;
-      void watchPreForkReleaseResources(PreForkReleaseResources::slot_type const& iSlot) {
-         preForkReleaseResourcesSignal_.connect_front(iSlot);
-      }
-      AR_WATCH_USING_METHOD_0(watchPreForkReleaseResources)
-      
-      /// signal is emitted after we forked the processes
-      typedef signalslot::Signal<void(unsigned int, unsigned int)> PostForkReacquireResources;
-      PostForkReacquireResources postForkReacquireResourcesSignal_;
-      void watchPostForkReacquireResources(PostForkReacquireResources::slot_type const& iSlot) {
-         postForkReacquireResourcesSignal_.connect_front(iSlot);
-      }
-      AR_WATCH_USING_METHOD_2(watchPostForkReacquireResources)
-      
       // ---------- member functions ---------------------------
       
       ///forwards our signals to slots connected to iOther

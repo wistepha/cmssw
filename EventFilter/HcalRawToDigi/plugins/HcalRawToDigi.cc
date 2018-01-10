@@ -107,6 +107,7 @@ void HcalRawToDigi::produce(edm::Event& e, const edm::EventSetup& es)
   edm::ESHandle<HcalElectronicsMap> item;
   es.get<HcalElectronicsMapRcd>().get(electronicsMapLabel_, item);
   const HcalElectronicsMap* readoutMap = item.product();
+  filter_.setConditions(pSetup.product());
   
   // Step B: Create empty output  : three vectors for three classes...
   std::vector<HBHEDataFrame> hbhe;
@@ -199,15 +200,15 @@ void HcalRawToDigi::produce(edm::Event& e, const edm::EventSetup& es)
   auto ho_prod = std::make_unique<HODigiCollection>();
   auto htp_prod = std::make_unique<HcalTrigPrimDigiCollection>();
   auto hotp_prod = std::make_unique<HOTrigPrimDigiCollection>();
-  if (colls.qie10 == 0) {
+  if (colls.qie10 == nullptr) {
     colls.qie10 = new QIE10DigiCollection(); 
   }
   std::unique_ptr<QIE10DigiCollection> qie10_prod(colls.qie10);
-  if (colls.qie10ZDC == 0) {
+  if (colls.qie10ZDC == nullptr) {
     colls.qie10ZDC = new QIE10DigiCollection(); 
   }
   std::unique_ptr<QIE10DigiCollection> qie10ZDC_prod(colls.qie10ZDC);
-  if (colls.qie11 == 0) {
+  if (colls.qie11 == nullptr) {
     colls.qie11 = new QIE11DigiCollection(); 
   }
   std::unique_ptr<QIE11DigiCollection> qie11_prod(colls.qie11);
@@ -223,10 +224,14 @@ void HcalRawToDigi::produce(edm::Event& e, const edm::EventSetup& es)
     HBHEDigiCollection filtered_hbhe=filter_.filter(*hbhe_prod,*report);
     HODigiCollection filtered_ho=filter_.filter(*ho_prod,*report);
     HFDigiCollection filtered_hf=filter_.filter(*hf_prod,*report);
+    QIE10DigiCollection filtered_qie10=filter_.filter(*qie10_prod,*report);
+    QIE11DigiCollection filtered_qie11=filter_.filter(*qie11_prod,*report);
     
     hbhe_prod->swap(filtered_hbhe);
     ho_prod->swap(filtered_ho);
     hf_prod->swap(filtered_hf);    
+    qie10_prod->swap(filtered_qie10);
+    qie11_prod->swap(filtered_qie11);
   }
 
 
@@ -288,7 +293,7 @@ void HcalRawToDigi::produce(edm::Event& e, const edm::EventSetup& es)
   e.put(std::move(report));
   /// umnio
   if (unpackUMNio_) {
-    if(colls.umnio != 0) {
+    if(colls.umnio != nullptr) {
       e.put(std::make_unique<HcalUMNioDigi>(umnio));
     }
 

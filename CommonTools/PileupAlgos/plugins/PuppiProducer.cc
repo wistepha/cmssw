@@ -33,6 +33,7 @@ PuppiProducer::PuppiProducer(const edm::ParameterSet& iConfig) {
   fPuppiForLeptons = iConfig.getParameter<bool>("puppiForLeptons");
   fUseDZ     = iConfig.getParameter<bool>("UseDeltaZCut");
   fDZCut     = iConfig.getParameter<double>("DeltaZCut");
+  fPtMax     = iConfig.getParameter<double>("PtMaxNeutrals");
   fUseExistingWeights     = iConfig.getParameter<bool>("useExistingWeights");
   fUseWeightsNoLep        = iConfig.getParameter<bool>("useWeightsNoLep");
   fClonePackedCands       = iConfig.getParameter<bool>("clonePackedCands");
@@ -97,13 +98,13 @@ void PuppiProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
     pReco.m   = itPF->mass();
     pReco.rapidity = itPF->rapidity();
     pReco.charge = itPF->charge(); 
-    const reco::Vertex *closestVtx = 0;
+    const reco::Vertex *closestVtx = nullptr;
     double pDZ    = -9999; 
     double pD0    = -9999; 
     int    pVtxId = -9999; 
     bool lFirst = true;
     const pat::PackedCandidate *lPack = dynamic_cast<const pat::PackedCandidate*>(&(*itPF));
-    if(lPack == 0 ) {
+    if(lPack == nullptr ) {
 
       const reco::PFCandidate *pPF = dynamic_cast<const reco::PFCandidate*>(&(*itPF));
       double curdz = 9999;
@@ -134,10 +135,10 @@ void PuppiProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
       }
       int tmpFromPV = 0;  
       // mocking the miniAOD definitions
-      if (closestVtx != 0 && std::abs(pReco.charge) > 0 && pVtxId > 0) tmpFromPV = 0;
-      if (closestVtx != 0 && std::abs(pReco.charge) > 0 && pVtxId == 0) tmpFromPV = 3;
-      if (closestVtx == 0 && std::abs(pReco.charge) > 0 && closestVtxForUnassociateds == 0) tmpFromPV = 2;
-      if (closestVtx == 0 && std::abs(pReco.charge) > 0 && closestVtxForUnassociateds != 0) tmpFromPV = 1;
+      if (closestVtx != nullptr && std::abs(pReco.charge) > 0 && pVtxId > 0) tmpFromPV = 0;
+      if (closestVtx != nullptr && std::abs(pReco.charge) > 0 && pVtxId == 0) tmpFromPV = 3;
+      if (closestVtx == nullptr && std::abs(pReco.charge) > 0 && closestVtxForUnassociateds == 0) tmpFromPV = 2;
+      if (closestVtx == nullptr && std::abs(pReco.charge) > 0 && closestVtxForUnassociateds != 0) tmpFromPV = 1;
       pReco.dZ      = pDZ;
       pReco.d0      = pD0;
       pReco.id = 0; 
@@ -195,7 +196,7 @@ void PuppiProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
     for(CandidateView::const_iterator itPF = pfCol->begin(); itPF!=pfCol->end(); itPF++) {  
       const pat::PackedCandidate *lPack = dynamic_cast<const pat::PackedCandidate*>(&(*itPF));
       float curpupweight = -1.;
-      if(lPack == 0 ) { 
+      if(lPack == nullptr ) { 
         // throw error
         throw edm::Exception(edm::errors::LogicError,"PuppiProducer: cannot get weights since inputs are not PackedCandidates");
       }

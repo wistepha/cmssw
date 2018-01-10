@@ -122,6 +122,7 @@ mixData = cms.EDProducer("DataMixingModule",
     PileupInfoInputTag = cms.InputTag("addPileupInfo"),
     BunchSpacingInputTag = cms.InputTag("addPileupInfo","bunchSpacing"),
     CFPlaybackInputTag = cms.InputTag("mix"),
+    GenPUProtonsInputTags = cms.VInputTag("genPUProtons"),
     #
     SistripLabelSig = cms.InputTag("simSiStripDigis","ZeroSuppressed"),
                    #
@@ -257,11 +258,12 @@ mixData.doEE = cms.bool(True)
 mixData.doES = cms.bool(True)
 
 from Configuration.Eras.Modifier_fastSim_cff import fastSim
-if fastSim.isChosen():
+from FastSimulation.Tracking.recoTrackAccumulator_cfi import recoTrackAccumulator as _recoTrackAccumulator
+fastSim.toModify(mixData,
     # from signal: mix tracks not strip or pixel digis
-    mixData.TrackerMergeType = "tracks"
-    import FastSimulation.Tracking.recoTrackAccumulator_cfi
-    mixData.tracker = FastSimulation.Tracking.recoTrackAccumulator_cfi.recoTrackAccumulator.clone()
-    mixData.tracker.pileUpTracks = cms.InputTag("mix","generalTracks")
-    mixData.hitsProducer = "famosSimHits"
-
+    TrackerMergeType = "tracks",
+    tracker = _recoTrackAccumulator.clone(
+        pileUpTracks = "mix:generalTracks"
+    ),
+    hitsProducer = "famosSimHits"
+)

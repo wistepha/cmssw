@@ -2,6 +2,13 @@ import FWCore.ParameterSet.Config as cms
 import copy
 from EventFilter.EcalRawToDigi.EcalUnpackerData_cfi import ecalEBunpacker
 from Calibration.EcalCalibAlgos.ecalPedestalPCLworker_cfi import ecalpedestalPCL
+from HLTrigger.HLTfilters.hltHighLevel_cfi import *
+
+ALCARECOEcalTestPulsesRaw = copy.deepcopy(hltHighLevel)
+ALCARECOEcalTestPulsesRaw.HLTPaths = ['pathALCARECOEcalTestPulsesRaw']
+# dont throw on unknown path names
+ALCARECOEcalTestPulsesRaw.throw = True
+ALCARECOEcalTestPulsesRaw.TriggerResultsTag = cms.InputTag("TriggerResults", "", "RECO")
 
 ALCARECOEcalPedestalsDigis = ecalEBunpacker.clone()
 ALCARECOEcalPedestalsDigis.InputLabel = cms.InputTag('hltEcalCalibrationRaw')
@@ -9,6 +16,7 @@ ALCARECOEcalPedestalsDigis.InputLabel = cms.InputTag('hltEcalCalibrationRaw')
 ALCARECOEcalPedestals = ecalpedestalPCL.clone()
 ALCARECOEcalPedestals.BarrelDigis = cms.InputTag('ALCARECOEcalPedestalsDigis', 'ebDigis')
 ALCARECOEcalPedestals.EndcapDigis = cms.InputTag('ALCARECOEcalPedestalsDigis', 'eeDigis')
+ALCARECOEcalPedestals.tcdsRecord   = cms.InputTag('ALCALRECOEcalTCDSDigis', 'tcdsRecord')
 
 
 MEtoEDMConvertEcalPedestals = cms.EDProducer("MEtoEDMConverter",
@@ -22,7 +30,12 @@ MEtoEDMConvertEcalPedestals = cms.EDProducer("MEtoEDMConverter",
                                              deleteAfterCopy=cms.untracked.bool(True)
                                              )
 
+ALCALRECOEcalTCDSDigis = cms.EDProducer('TcdsRawToDigi')
+ALCALRECOEcalTCDSDigis.InputLabel =  cms.InputTag('hltEcalCalibrationRaw')
+
 # The actual sequence
-seqALCARECOPromptCalibProdEcalPedestals = cms.Sequence(ALCARECOEcalPedestalsDigis *
+seqALCARECOPromptCalibProdEcalPedestals = cms.Sequence(ALCALRECOEcalTCDSDigis    *
+                                                       ALCARECOEcalTestPulsesRaw *
+                                                       ALCARECOEcalPedestalsDigis *
                                                        ALCARECOEcalPedestals *
                                                        MEtoEDMConvertEcalPedestals)

@@ -86,7 +86,7 @@ namespace edm {
 
           if (object=="SimTrack") {
             InputTag tag;
-            if (tags.size()>0) tag=tags[0];
+            if (!tags.empty()) tag=tags[0];
             std::string label;
 
             branchesActivate(TypeID(typeid(std::vector<SimTrack>)).friendlyClassName(),std::string(""),tag,label);
@@ -103,7 +103,7 @@ namespace edm {
 
           } else if (object=="RecoTrack") {
             InputTag tag;
-            if (tags.size()>0) tag=tags[0];
+            if (!tags.empty()) tag=tags[0];
             std::string label;
 
             branchesActivate(TypeID(typeid(std::vector<reco::Track>)).friendlyClassName(),std::string(""),tag,label);
@@ -117,7 +117,7 @@ namespace edm {
 
           } else if (object=="SimVertex") {
             InputTag tag;
-            if (tags.size()>0) tag=tags[0];
+            if (!tags.empty()) tag=tags[0];
             std::string label;
 
             branchesActivate(TypeID(typeid(std::vector<SimVertex>)).friendlyClassName(),std::string(""),tag,label);
@@ -134,7 +134,7 @@ namespace edm {
 
           } else if (object=="HepMCProduct") {
             InputTag tag;
-            if (tags.size()>0) tag=tags[0];
+            if (!tags.empty()) tag=tags[0];
             std::string label;
 
             branchesActivate(TypeID(typeid(HepMCProduct)).friendlyClassName(),std::string(""),tag,label);
@@ -229,7 +229,7 @@ namespace edm {
 	}
         std::unique_ptr<DigiAccumulatorMixMod> accumulator = std::unique_ptr<DigiAccumulatorMixMod>(DigiAccumulatorMixModFactory::get()->makeDigiAccumulator(pset, *this, iC));
         // Create appropriate DigiAccumulator
-        if(accumulator.get() != 0) {
+        if(accumulator.get() != nullptr) {
           digiAccumulators_.push_back(accumulator.release());
         }
     }
@@ -409,7 +409,7 @@ namespace edm {
     }
     else{ // have to read PU information from playback info
       for (int bunchIdx = minBunch_; bunchIdx <= maxBunch_; ++bunchIdx) {
-
+	bunchCrossingList.push_back(bunchIdx);
 	for (size_t readSrcIdx=0; readSrcIdx<maxNbSources_; ++readSrcIdx) {
                                                                       
 	  if(oldFormatPlayback) {
@@ -418,12 +418,16 @@ namespace edm {
 	    if(readSrcIdx == 0) {
 	      PileupList.push_back(numberOfEvents);
 	      TrueNumInteractions_.push_back(numberOfEvents);
+	      numInteractionList.push_back(numberOfEvents);
+	      TrueInteractionList.push_back(numberOfEvents);
 	    }
 	  } else {
 	    size_t numberOfEvents = playbackInfo_H->getNumberOfEvents(bunchIdx, readSrcIdx);
 	    if(readSrcIdx == 0) {
 	      PileupList.push_back(numberOfEvents);
 	      TrueNumInteractions_.push_back(numberOfEvents);
+	      numInteractionList.push_back(numberOfEvents);
+	      TrueInteractionList.push_back(numberOfEvents);
 	    }
 	  }
 	}

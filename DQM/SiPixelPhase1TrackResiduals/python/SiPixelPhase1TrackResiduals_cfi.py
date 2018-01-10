@@ -1,16 +1,31 @@
 import FWCore.ParameterSet.Config as cms
 from DQMServices.Core.DQMEDHarvester import DQMEDHarvester
 from DQM.SiPixelPhase1Common.HistogramManager_cfi import *
+import DQM.SiPixelPhase1Common.TriggerEventFlag_cfi as trigger
 
 SiPixelPhase1TrackResidualsResidualsX = DefaultHistoTrack.clone(
   name = "residual_x",
   title = "Track Residuals X",
-  range_min = -0.15, range_max = 0.15, range_nbins = 150,
+  range_min = -0.1, range_max = 0.1, range_nbins = 100,
   xlabel = "(x_rec - x_pred) [cm]",
   dimensions = 1,
   specs = VPSet(
     StandardSpecification2DProfile,
-    StandardSpecifications1D
+    Specification().groupBy("PXBarrel/PXLayer").saveAll(),
+    Specification().groupBy("PXForward/PXDisk").saveAll(),
+    
+    Specification().groupBy("PXBarrel/PXLayer/LumiBlock")
+                   .reduce("MEAN")
+                   .groupBy("PXBarrel/PXLayer", "EXTEND_X")
+                   .save(),
+
+    Specification().groupBy("PXForward/PXDisk/LumiBlock")
+                   .reduce("MEAN")
+                   .groupBy("PXForward/PXDisk", "EXTEND_X")
+                   .save(),
+
+    Specification(PerLayer1D).groupBy("PXBarrel/Shell/PXLayer").save(),
+    Specification(PerLayer1D).groupBy("PXForward/HalfCylinder/PXRing/PXDisk").save()
   )
 )
 
@@ -28,9 +43,10 @@ SiPixelPhase1TrackResidualsConf = cms.VPSet(
 SiPixelPhase1TrackResidualsAnalyzer = cms.EDAnalyzer("SiPixelPhase1TrackResiduals",
         trajectoryInput = cms.string("generalTracks"),
         Tracks        = cms.InputTag("generalTracks"),
-        VertexCut                  = cms.bool(True), # Will not apply the vertex cuts on cosmics
+        vertices = cms.InputTag("offlinePrimaryVertices"),
         histograms = SiPixelPhase1TrackResidualsConf,
-        geometry = SiPixelPhase1Geometry
+        geometry = SiPixelPhase1Geometry,
+        triggerflags = trigger.SiPixelPhase1Triggers
 )
 
 SiPixelPhase1TrackResidualsHarvester = DQMEDHarvester("SiPixelPhase1Harvester",

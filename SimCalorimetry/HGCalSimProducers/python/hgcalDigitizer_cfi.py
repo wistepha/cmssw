@@ -3,7 +3,9 @@ import FWCore.ParameterSet.Config as cms
 # Base configurations for HGCal digitizers
 eV_per_eh_pair = 3.62
 fC_per_ele     = 1.6020506e-4
-nonAgedNoises = [2100.0,2100.0,1600.0] #100,200,300 um (in electrons)
+nonAgedCCEs    = [1.0, 1.0, 1.0]
+nonAgedNoises  = [2100.0,2100.0,1600.0] #100,200,300 um (in electrons)
+thresholdTracksMIP = False
 
 # ECAL
 hgceeDigitizer = cms.PSet( 
@@ -20,6 +22,8 @@ hgceeDigitizer = cms.PSet(
     verbosity         = cms.untracked.uint32(0),
     digiCfg = cms.PSet( 
         keV2fC           = cms.double(0.044259), #1000 eV/3.62 (eV per e) / 6.24150934e3 (e per fC)
+
+        chargeCollectionEfficiency = cms.vdouble( nonAgedCCEs ),
         noise_fC         = cms.vdouble( [x*fC_per_ele for x in nonAgedNoises] ), #100,200,300 um
         doTimeSamples    = cms.bool(False),                                         
         feCfg   = cms.PSet( 
@@ -35,6 +39,10 @@ hgceeDigitizer = cms.PSet(
             adcSaturation_fC  = cms.double(100),
             # the tdc resolution smearing (in picoseconds)
             tdcResolutionInPs = cms.double( 0.001 ),
+            # jitter for timing noise term ns
+            jitterNoise_ns = cms.vdouble(0., 0., 0.),
+            # jitter for timing noise term ns
+            jitterConstant_ns = cms.vdouble(0.00, 0.00, 0.00),
             # LSB for TDC, assuming 12 bit dynamic range to 10 pC
             tdcNbits          = cms.uint32(12),
             # TDC saturation
@@ -42,8 +50,11 @@ hgceeDigitizer = cms.PSet(
             # raise threshold flag (~MIP/2) this is scaled 
             # for different thickness
             adcThreshold_fC   = cms.double(0.672),
+            thresholdFollowsMIP        = cms.bool(thresholdTracksMIP),
             # raise usage of TDC and mode flag (from J. Kaplon)
-            tdcOnset_fC       = cms.double(60) ,
+            tdcOnset_fC       = cms.double(60),
+            # raise usage of TDC for TOA only
+            tdcForToAOnset_fC = cms.vdouble(60., 60., 60.),
             # LSB for time of arrival estimate from TDC in ns
             toaLSB_ns         = cms.double(0.005),
             #toa computation mode (0=by weighted energy, 1=simple threshold)
@@ -72,6 +83,7 @@ hgchefrontDigitizer = cms.PSet(
     verbosity         = cms.untracked.uint32(0),
     digiCfg = cms.PSet(        
         keV2fC           = cms.double(0.044259), #1000 eV / 3.62 (eV per e) / 6.24150934e3 (e per fC)
+        chargeCollectionEfficiency = cms.vdouble( nonAgedCCEs ),
         noise_fC         = cms.vdouble( [x*fC_per_ele for x in nonAgedNoises] ), #100,200,300 um
         doTimeSamples    = cms.bool(False),                                         
         feCfg   = cms.PSet( 
@@ -86,6 +98,10 @@ hgchefrontDigitizer = cms.PSet(
             adcSaturation_fC  = cms.double(100),
             # the tdc resolution smearing (in picoseconds)
             tdcResolutionInPs = cms.double( 0.001 ),
+            # jitter for timing noise term ns
+            jitterNoise_ns = cms.vdouble(0., 0., 0.),
+            # jitter for timing noise term ns
+            jitterConstant_ns = cms.vdouble(0.00, 0.00, 0.00),
             # LSB for TDC, assuming 12 bit dynamic range to 10 pC
             tdcNbits          = cms.uint32(12),
             # TDC saturation
@@ -93,8 +109,11 @@ hgchefrontDigitizer = cms.PSet(
             # raise threshold flag (~MIP/2) this is scaled 
             # for different thickness
             adcThreshold_fC   = cms.double(0.672),
+            thresholdFollowsMIP        = cms.bool(thresholdTracksMIP),
             # raise usage of TDC and mode flag (from J. Kaplon)
-            tdcOnset_fC       = cms.double(60) ,
+            tdcOnset_fC       = cms.double(60), 
+            # raise usage of TDC for TOA only                                                                                                                            
+            tdcForToAOnset_fC = cms.vdouble(60., 60., 60.),
             # LSB for time of arrival estimate from TDC in ns
             toaLSB_ns         = cms.double(0.005),
             #toa computation mode (0=by weighted energy, 1=simple threshold)
@@ -124,12 +143,12 @@ hgchebackDigitizer = cms.PSet(
     verbosity         = cms.untracked.uint32(0),
     digiCfg = cms.PSet( 
         keV2MIP           = cms.double(1./616.0),
-        noise_MIP         = cms.double(0.2),
+        noise_MIP         = cms.double(1.0/7.0), #expectation based on latest SiPM performance
         doTimeSamples = cms.bool(False),
         nPEperMIP = cms.double(11.0),
         nTotalPE  = cms.double(1156), #1156 pixels => saturation ~600MIP
         xTalk     = cms.double(0.25),
-        sdPixels  = cms.double(3.0),
+        sdPixels  = cms.double(1e-6), # this is additional photostatistics noise (as implemented), not sure why it's here...
         feCfg   = cms.PSet( 
             # 0 only ADC, 1 ADC with pulse shape, 2 ADC+TDC with pulse shape
             fwVersion       = cms.uint32(0),
@@ -138,12 +157,18 @@ hgchebackDigitizer = cms.PSet(
             # ADC saturation : in this case we use the same variable but fC=MIP
             adcSaturation_fC = cms.double(1024.0),
             # threshold for digi production : in this case we use the same variable but fC=MIP
-            adcThreshold_fC = cms.double(0.75)
+            adcThreshold_fC = cms.double(0.50),
+            thresholdFollowsMIP = cms.bool(False)
             )
         )                              
     )
 
 #function to set noise to aged HGCal
+endOfLifeCCEs = [0.5, 0.5, 0.7]
 endOfLifeNoises = [2400.0,2250.0,1750.0]
 def HGCal_setEndOfLifeNoise(digitizer):
-    digitizer.digiCfg.noise_fC = cms.vdouble( [x*fC_per_ele for x in endOfLifeNoises] )
+    if( digitizer.digiCollection != "HGCDigisHEback" ):
+        digitizer.digiCfg.noise_fC = cms.vdouble( [x*fC_per_ele for x in endOfLifeNoises] )
+        digitizer.digiCfg.chargeCollectionEfficiency = cms.vdouble(endOfLifeCCEs)
+    else: #use S/N of 7 for SiPM readout
+        digitizer.digiCfg.noise_MIP = cms.double( 1.0/5.0 )

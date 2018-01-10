@@ -25,8 +25,8 @@ ecalPacker.labelEBSRFlags = "simEcalDigis:ebSrFlags"
 ecalPacker.labelEESRFlags = "simEcalDigis:eeSrFlags"
 hcalRawDatauHTR.premix = cms.bool(True)
 
-from Configuration.Eras.Modifier_phase2_common_cff import phase2_common
-phase2_common.toReplaceWith(DigiToRaw, DigiToRaw.copyAndExclude([castorRawData]))
+from Configuration.Eras.Modifier_run3_common_cff import run3_common
+run3_common.toReplaceWith(DigiToRaw, DigiToRaw.copyAndExclude([castorRawData]))
 
 #until we have hcal raw data for phase 2....
 from Configuration.Eras.Modifier_phase2_hcal_cff import phase2_hcal
@@ -40,6 +40,4 @@ from Configuration.Eras.Modifier_phase2_muon_cff import phase2_muon
 phase2_muon.toReplaceWith(DigiToRaw, DigiToRaw.copyAndExclude([rpcpacker]))
 
 from Configuration.Eras.Modifier_fastSim_cff import fastSim
-if fastSim.isChosen() :
-    for _entry in [siPixelRawData,SiStripDigiToRaw,castorRawData]:
-        DigiToRaw.remove(_entry)
+fastSim.toReplaceWith(DigiToRaw, DigiToRaw.copyAndExclude([siPixelRawData,SiStripDigiToRaw,castorRawData]))

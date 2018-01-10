@@ -31,7 +31,7 @@ namespace edm {
 //
 // constructors and destructor
 //
-   EventSetup::EventSetup() : syncValue_(IOVSyncValue::invalidIOVSyncValue()), recordMap_()
+   EventSetup::EventSetup() : recordMap_()
 {
 }
 
@@ -60,12 +60,6 @@ EventSetup::~EventSetup()
 // member functions
 //
 void
-EventSetup::setIOVSyncValue(const IOVSyncValue& iTime) {
-   //will ultimately build our list of records
-   syncValue_ = iTime;
-}
-
-void 
 EventSetup::insert(const eventsetup::EventSetupRecordKey& iKey,
                 const eventsetup::EventSetupRecord* iRecord)
 {
@@ -93,7 +87,7 @@ EventSetup::find(const eventsetup::EventSetupRecordKey& iKey) const
    std::map<eventsetup::EventSetupRecordKey, eventsetup::EventSetupRecord const *>::const_iterator itFind
    = recordMap_.find(iKey);
    if(itFind == recordMap_.end()) {
-      return 0;
+      return nullptr;
    }
    return itFind->second;
 }

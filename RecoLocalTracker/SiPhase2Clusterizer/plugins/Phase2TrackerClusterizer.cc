@@ -14,7 +14,7 @@
 #endif
 #include "Phase2TrackerClusterizerSequentialAlgorithm.h"
 
-#include "Geometry/CommonDetUnit/interface/GeomDetUnit.h"
+#include "Geometry/CommonDetUnit/interface/GeomDet.h"
 #include "Geometry/Records/interface/TrackerDigiGeometryRecord.h"
 #include "Geometry/TrackerGeometryBuilder/interface/TrackerGeometry.h"
 #include "Geometry/TrackerGeometryBuilder/interface/PixelGeomDetUnit.h"
@@ -33,8 +33,8 @@ class Phase2TrackerClusterizer : public edm::stream::EDProducer<> {
 
     public:
         explicit Phase2TrackerClusterizer(const edm::ParameterSet& conf);
-        virtual ~Phase2TrackerClusterizer();
-        virtual void produce(edm::Event& event, const edm::EventSetup& eventSetup) override;
+        ~Phase2TrackerClusterizer() override;
+        void produce(edm::Event& event, const edm::EventSetup& eventSetup) override;
 
     private:
 #ifdef VERIFY_PH2_TK_CLUS

@@ -39,9 +39,9 @@ namespace edm {
         HistoryAppender* historyAppender,
         unsigned int iRunIndex,
         bool isForPrimaryProcess=true);
-    ~RunPrincipal() {}
+    ~RunPrincipal() override {}
 
-    void fillRunPrincipal(ProcessHistoryRegistry const& processHistoryRegistry, DelayedReader* reader = 0);
+    void fillRunPrincipal(ProcessHistoryRegistry const& processHistoryRegistry, DelayedReader* reader = nullptr);
 
     /** Multiple Runs may be processed simultaneously. The
      return value can be used to identify a particular Run.
@@ -90,15 +90,18 @@ namespace edm {
         BranchDescription const& bd,
         std::unique_ptr<WrapperBase> edp) const;
 
+    void put(ProductResolverIndex index,
+             std::unique_ptr<WrapperBase> edp) const;
+
     void setComplete() {
       complete_ = true;
     }
 
   private:
 
-    virtual bool isComplete_() const override {return complete_;}
+    bool isComplete_() const override {return complete_;}
 
-    virtual unsigned int transitionIndex_() const override;
+    unsigned int transitionIndex_() const override;
 
     edm::propagate_const<std::shared_ptr<RunAuxiliary>> aux_;
     ProcessHistoryID m_reducedHistoryID;

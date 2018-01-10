@@ -69,6 +69,8 @@ namespace edm {
   class PreallocationConfiguration;
   class ModuleRegistry;
   class TriggerResultInserter;
+  class PathStatusInserter;
+  class EndPathStatusInserter;
   
   class GlobalSchedule {
   public:
@@ -78,6 +80,8 @@ namespace edm {
     typedef std::vector<Worker*> Workers;
 
     GlobalSchedule(std::shared_ptr<TriggerResultInserter> inserter,
+                   std::vector<edm::propagate_const<std::shared_ptr<PathStatusInserter>>>& pathStatusInserters,
+                   std::vector<edm::propagate_const<std::shared_ptr<EndPathStatusInserter>>>& endPathStatusInserters,
                    std::shared_ptr<ModuleRegistry> modReg,
                    std::vector<std::string> const& modulesToUse,
                    ParameterSet& proc_pset,
@@ -88,11 +92,6 @@ namespace edm {
                    std::shared_ptr<ProcessConfiguration> processConfiguration,
                    ProcessContext const* processContext);
     GlobalSchedule(GlobalSchedule const&) = delete;
-
-    template <typename T>
-    void processOneGlobal(typename T::MyPrincipal& principal,
-                          EventSetup const& eventSetup,
-                          bool cleaningUpAfterException = false);
 
     template <typename T>
     void processOneGlobalAsync(WaitingTaskHolder holder,
@@ -149,11 +148,6 @@ namespace edm {
       GlobalContext const* context_;
     };
 
-    
-    template<typename T>
-    void runNow(typename T::MyPrincipal const& p, EventSetup const& es,
-                GlobalContext const* context);
-
     /// returns the action table
     ExceptionToActionTable const& actionTable() const {
       return workerManager_.actionTable();
@@ -164,50 +158,13 @@ namespace edm {
     WorkerManager                         workerManager_;
     std::shared_ptr<ActivityRegistry>     actReg_; // We do not use propagate_const because the registry itself is mutable.
     edm::propagate_const<WorkerPtr>       results_inserter_;
-
+    std::vector<edm::propagate_const<WorkerPtr>> pathStatusInserterWorkers_;
+    std::vector<edm::propagate_const<WorkerPtr>> endPathStatusInserterWorkers_;
 
     ProcessContext const*                 processContext_;
   };
 
 
-  template <typename T>
-  void
-  GlobalSchedule::processOneGlobal(typename T::MyPrincipal& ep,
-                                 EventSetup const& es,
-                                 bool cleaningUpAfterException) {
-    GlobalContext globalContext = T::makeGlobalContext(ep, processContext_);
-
-    GlobalScheduleSignalSentry<T> sentry(actReg_.get(), &globalContext);
-    
-    SendTerminationSignalIfException terminationSentry(actReg_.get(), &globalContext);
-
-    //If we are in an end transition, we need to reset failed items since they might
-    // be set this time around
-    if( not T::begin_) {
-      ep.resetFailedFromThisProcess();
-    }
-    // This call takes care of the unscheduled processing.
-    workerManager_.processOneOccurrence<T>(ep, es, StreamID::invalidStreamID(), &globalContext, &globalContext, cleaningUpAfterException);
-
-    try {
-      convertException::wrap([&]() {
-        runNow<T>(ep,es,&globalContext);
-      });
-    }
-    catch(cms::Exception& ex) {
-      if (ex.context().empty()) {
-        addContextAndPrintException("Calling function GlobalSchedule::processOneGlobal", ex, cleaningUpAfterException);
-      } else {
-        addContextAndPrintException("", ex, cleaningUpAfterException);
-      }
-      throw;
-    }
-    terminationSentry.completedSuccessfully();
-    
-    //If we got here no other exception has happened so we can propogate any Service related exceptions
-    sentry.allowThrow();
-  }
-  
   template <typename T>
   void
   GlobalSchedule::processOneGlobalAsync(WaitingTaskHolder iHolder,
@@ -282,26 +239,6 @@ namespace edm {
 
   }
 
-  template <typename T>
-  void
-  GlobalSchedule::runNow(typename T::MyPrincipal const& p, EventSetup const& es,
-              GlobalContext const* context) {
-    //do nothing for event since we will run when requested
-    for(auto & worker: allWorkers()) {
-      try {
-        ParentContext parentContext(context);
-        worker->doWork<T>(p, es,StreamID::invalidStreamID(), parentContext, context);
-      }
-      catch (cms::Exception & ex) {
-        if(ex.context().empty()) {
-          std::ostringstream ost;
-          ost << "Processing " <<T::transitionName()<<" "<< p.id();
-          ex.addContext(ost.str());
-        }
-        throw;
-      }
-    }
-  }
 }
 
 #endif

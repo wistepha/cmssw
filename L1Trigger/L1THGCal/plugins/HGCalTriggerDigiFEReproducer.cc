@@ -6,8 +6,10 @@
 #include "FWCore/Framework/interface/ConsumesCollector.h"
 
 #include "DataFormats/L1THGCal/interface/HGCFETriggerDigi.h"
-#include "DataFormats/L1THGCal/interface/HGCFETriggerDigiFwd.h"
+#include "DataFormats/L1THGCal/interface/HGCFETriggerDigiDefs.h"
 #include "DataFormats/HGCDigi/interface/HGCDigiCollections.h"
+
+#include "Geometry/Records/interface/CaloGeometryRecord.h"
 
 #include "L1Trigger/L1THGCal/interface/HGCalTriggerGeometryBase.h"
 #include "L1Trigger/L1THGCal/interface/HGCalTriggerFECodecBase.h"
@@ -20,10 +22,10 @@ class HGCalTriggerDigiFEReproducer : public edm::stream::EDProducer<>
 {  
     public:    
         HGCalTriggerDigiFEReproducer(const edm::ParameterSet&);
-        ~HGCalTriggerDigiFEReproducer() { }
+        ~HGCalTriggerDigiFEReproducer() override { }
 
-        virtual void beginRun(const edm::Run&, const edm::EventSetup&);
-        virtual void produce(edm::Event&, const edm::EventSetup&);
+        void beginRun(const edm::Run&, const edm::EventSetup&) override;
+        void produce(edm::Event&, const edm::EventSetup&) override;
 
     private:
         // inputs
@@ -59,7 +61,7 @@ HGCalTriggerDigiFEReproducer::HGCalTriggerDigiFEReproducer(const edm::ParameterS
 void HGCalTriggerDigiFEReproducer::beginRun(const edm::Run& /*run*/, const edm::EventSetup& es) 
 /*****************************************************************/
 {
-    es.get<IdealGeometryRecord>().get(triggerGeometry_);
+    es.get<CaloGeometryRecord>().get(triggerGeometry_);
     codec_->setGeometry(triggerGeometry_.product());
     backEndProcessor_->setGeometry(triggerGeometry_.product());
 }

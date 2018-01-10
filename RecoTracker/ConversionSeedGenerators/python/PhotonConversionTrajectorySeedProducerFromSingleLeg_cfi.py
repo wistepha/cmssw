@@ -1,5 +1,10 @@
 import FWCore.ParameterSet.Config as cms
 
+
+from RecoTracker.TkSeedGenerator.SeedGeneratorFromRegionHitsEDProducer_cfi import seedGeneratorFromRegionHitsEDProducer 
+CommonClusterCheckPSet = seedGeneratorFromRegionHitsEDProducer.ClusterCheckPSet
+
+
 photonConvTrajSeedFromSingleLeg  = cms.EDProducer("PhotonConversionTrajectorySeedProducerFromSingleLeg",
                                                   TrackRefitter        = cms.InputTag('TrackRefitter',''),
                                                   primaryVerticesTag   = cms.InputTag("offlinePrimaryVertices"),
@@ -20,14 +25,7 @@ photonConvTrajSeedFromSingleLeg  = cms.EDProducer("PhotonConversionTrajectorySee
                                                   SeedComparitorPSet = cms.PSet(
                                                       ComponentName = cms.string('none')
                                                       ),
-                                                  ClusterCheckPSet = cms.PSet(
-                                                      PixelClusterCollectionLabel = cms.InputTag("siPixelClusters"),
-                                                      MaxNumberOfCosmicClusters = cms.uint32(400000),
-                                                      doClusterCheck = cms.bool(True),
-                                                      ClusterCollectionLabel = cms.InputTag("siStripClusters"),
-                                                      MaxNumberOfPixelClusters = cms.uint32(40000),
-                                                      cut = cms.string("strip < 400000 && pixel < 40000 && (strip < 50000 + 10*pixel) && (pixel < 5000 + 0.1*strip)"),
-                                                      ),
+                                                  ClusterCheckPSet = CommonClusterCheckPSet,
                                                   RegionFactoryPSet = cms.PSet(
                                                       RegionPSet = cms.PSet( precise = cms.bool(True),
                                                                              beamSpot = cms.InputTag("offlineBeamSpot"),
@@ -69,4 +67,10 @@ from Configuration.Eras.Modifier_peripheralPbPb_cff import peripheralPbPb
 peripheralPbPb.toModify(photonConvTrajSeedFromSingleLeg,
                         ClusterCheckPSet = dict(cut = "strip < 400000 && pixel < 40000 && (strip < 60000 + 7.0*pixel) && (pixel < 8000 + 0.14*strip)")
                         )
-
+from Configuration.Eras.Modifier_pp_on_XeXe_2017_cff import pp_on_XeXe_2017
+pp_on_XeXe_2017.toModify(photonConvTrajSeedFromSingleLeg,
+                         ClusterCheckPSet = dict(MaxNumberOfPixelClusters = 100000,
+                                                 cut = "strip < 1000000 && pixel < 100000 && (strip < 50000 + 10*pixel) && (pixel < 5000 + strip/2.)"
+                                                 ),
+                         OrderedHitsFactoryPSet = dict(maxElement = 100000)
+                         )

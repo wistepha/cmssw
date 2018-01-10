@@ -10,7 +10,7 @@ HcalRecHitsAnalyzer::HcalRecHitsAnalyzer(edm::ParameterSet const& conf)
   // DQM ROOT output
   outputFile_ = conf.getUntrackedParameter<std::string>("outputFile", "myfile.root");
   
-  if ( outputFile_.size() != 0 ) {
+  if ( !outputFile_.empty() ) {
     edm::LogInfo("OutputInfo") << " Hcal RecHit Task histograms will be saved to '" << outputFile_.c_str() << "'";
   } else {
     edm::LogInfo("OutputInfo") << " Hcal RecHit Task histograms will NOT be saved";
@@ -233,7 +233,9 @@ HcalRecHitsAnalyzer::HcalRecHitsAnalyzer(edm::ParameterSet const& conf)
       
       // nrechits vs iphi
       for (int depth = 1; depth <= maxDepthHB_; depth++) {
-
+	
+	 sprintf  (histo, "occupancy_vs_ieta_HB%d",depth );
+	 occupancy_vs_ieta_HB.push_back( ibooker.book1D(histo, histo, ieta_bins_, ieta_min_, ieta_max_) );
          sprintf  (histo, "nrechits_vs_iphi_HBP_d%d",depth );
          nrechits_vs_iphi_HBP.push_back( ibooker.book1D(histo, histo, iphi_bins_, iphi_min_, iphi_max_) );
          sprintf  (histo, "nrechits_vs_iphi_HBM_d%d",depth );
@@ -241,18 +243,24 @@ HcalRecHitsAnalyzer::HcalRecHitsAnalyzer(edm::ParameterSet const& conf)
       }
 
       for (int depth = 1; depth <= maxDepthHE_; depth++) {
+         sprintf  (histo, "occupancy_vs_ieta_HE%d",depth );
+         occupancy_vs_ieta_HE.push_back( ibooker.book1D(histo, histo, ieta_bins_, ieta_min_, ieta_max_) );
          sprintf  (histo, "nrechits_vs_iphi_HEP_d%d",depth );
          nrechits_vs_iphi_HEP.push_back( ibooker.book1D(histo, histo, iphi_bins_, iphi_min_, iphi_max_) );
          sprintf  (histo, "nrechits_vs_iphi_HEM_d%d",depth );
          nrechits_vs_iphi_HEM.push_back( ibooker.book1D(histo, histo, iphi_bins_, iphi_min_, iphi_max_) );
       }
 
+      sprintf  (histo, "occupancy_vs_ieta_HO" );
+      occupancy_vs_ieta_HO = ibooker.book1D(histo, histo, ieta_bins_, ieta_min_, ieta_max_);
       sprintf  (histo, "nrechits_vs_iphi_HOP" );
       nrechits_vs_iphi_HOP = ibooker.book1D(histo, histo, iphi_bins_, iphi_min_, iphi_max_);
       sprintf  (histo, "nrechits_vs_iphi_HOM" );
       nrechits_vs_iphi_HOM = ibooker.book1D(histo, histo, iphi_bins_, iphi_min_, iphi_max_);
 
       for (int depth = 1; depth <= maxDepthHF_; depth++) {
+         sprintf  (histo, "occupancy_vs_ieta_HF%d",depth );
+         occupancy_vs_ieta_HF.push_back( ibooker.book1D(histo, histo, ieta_bins_, ieta_min_, ieta_max_) );
          sprintf  (histo, "nrechits_vs_iphi_HFP_d%d",depth );
          nrechits_vs_iphi_HFP.push_back( ibooker.book1D(histo, histo, iphi_bins_, iphi_min_, iphi_max_) );
          sprintf  (histo, "nrechits_vs_iphi_HFM_d%d",depth );
@@ -358,7 +366,7 @@ HcalRecHitsAnalyzer::HcalRecHitsAnalyzer(edm::ParameterSet const& conf)
       meTEprofileHB = ibooker.bookProfile(histo, histo, 150, -5., 295., -48., 92., " "); 
 
       sprintf (histo, "HcalRecHitTask_Log10Chi2_vs_energy_profile_HB" ) ;
-      meLog10Chi2profileHB = ibooker.bookProfile(histo, histo, 150, -5., 295., -2., 10., " "); 
+      meLog10Chi2profileHB = ibooker.bookProfile(histo, histo, 150, -5., 295., -2., 9.9, " "); 
 
       sprintf (histo, "HcalRecHitTask_timing_vs_energy_profile_High_HB" ) ;
       meTEprofileHB_High = ibooker.bookProfile(histo, histo, 150, -5., 2995., -48., 92., " "); 
@@ -431,8 +439,7 @@ HcalRecHitsAnalyzer::HcalRecHitsAnalyzer(edm::ParameterSet const& conf)
       meTEprofileHE = ibooker.bookProfile(histo, histo, 200, -5., 395., -48., 92., " "); 
       
       sprintf (histo, "HcalRecHitTask_Log10Chi2_vs_energy_profile_HE" ) ;
-      meLog10Chi2profileHE = ibooker.bookProfile(histo, histo, 200, -5., 395., -2., 10., " "); 
-      
+      meLog10Chi2profileHE = ibooker.bookProfile(histo, histo, 200, -5., 395., -2., 9.9, " ");       
 
     }
 
@@ -788,6 +795,8 @@ void HcalRecHitsAnalyzer::analyze(edm::Event const& ev, edm::EventSetup const& c
       double enM0  = cenM0[i]; 
       double enM3  = cenM3[i]; 
       double chi2  = cchi2[i];
+      double chi2_log10=9.99; // initial value - stay with this value if chi2<0.
+      if (chi2>0.) chi2_log10=log10(chi2);
       double t   = ctime[i];
       double depth = cdepth[i];
 
@@ -819,8 +828,8 @@ void HcalRecHitsAnalyzer::analyze(edm::Event const& ev, edm::EventSetup const& c
         meRecHitsEnergyM3vM0HB->Fill(enM0,enM3);
         meRecHitsEnergyM3vM2HB->Fill(en,enM3);
 
-        meRecHitsM2Chi2HB->Fill(log10(chi2));
-        meLog10Chi2profileHB->Fill(en,log10(chi2));
+        meRecHitsM2Chi2HB->Fill(chi2_log10);
+        meLog10Chi2profileHB->Fill(en,chi2_log10);
 	
 	meTE_Low_HB->Fill( en, t);
 	meTE_HB->Fill( en, t);
@@ -848,8 +857,8 @@ void HcalRecHitsAnalyzer::analyze(edm::Event const& ev, edm::EventSetup const& c
         meRecHitsEnergyM3vM0HE->Fill(enM0,enM3);
         meRecHitsEnergyM3vM2HE->Fill(en,enM3);
 
-        meRecHitsM2Chi2HE->Fill(log10(chi2));
-        meLog10Chi2profileHE->Fill(en,log10(chi2));	
+        meRecHitsM2Chi2HE->Fill(chi2_log10);
+        meLog10Chi2profileHE->Fill(en,chi2_log10);	
 
 	meTE_Low_HE->Fill( en, t);
 	meTE_HE->Fill( en, t);

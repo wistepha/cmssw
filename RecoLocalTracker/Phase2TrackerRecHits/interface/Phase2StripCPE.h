@@ -4,7 +4,7 @@
 #include "RecoLocalTracker/ClusterParameterEstimator/interface/ClusterParameterEstimator.h"
 #include "MagneticField/Engine/interface/MagneticField.h"
 #include "Geometry/TrackerGeometryBuilder/interface/TrackerGeometry.h"
-#include "Geometry/CommonDetUnit/interface/GeomDetUnit.h"
+#include "Geometry/CommonDetUnit/interface/GeomDet.h"
 #include "Geometry/TrackerGeometryBuilder/interface/PixelGeomDetUnit.h"
 #include "DataFormats/Phase2TrackerCluster/interface/Phase2TrackerCluster1D.h"
 
@@ -30,7 +30,7 @@ public:
 public:
 
     Phase2StripCPE(edm::ParameterSet & conf, const MagneticField &,const TrackerGeometry&);
-    LocalValues localParameters(const Phase2TrackerCluster1D & cluster, const GeomDetUnit & det) const;
+    LocalValues localParameters(const Phase2TrackerCluster1D & cluster, const GeomDetUnit & det) const override;
     LocalVector driftDirection(const Phase2TrackerGeomDetUnit & det) const;
 
 private:

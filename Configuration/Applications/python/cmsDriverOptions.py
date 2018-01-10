@@ -50,7 +50,7 @@ def OptionsFromItems(items):
         from Configuration.AlCa import autoCond
         possible=""
         for k in autoCond.autoCond:
-            possible+="\nauto:"+k+" -> "+autoCond.autoCond[k]
+            possible+="\nauto:"+k+" -> "+str(autoCond.autoCond[k])
         raise Exception("the --conditions option is mandatory. Possibilities are: "+possible)
 
 
@@ -100,7 +100,9 @@ def OptionsFromItems(items):
                  "DIGI2RAW":"DATAMIX",
                  "HARVESTING":"RECO",
                  "ALCAHARVEST":"RECO",
-                 "PAT":"RECO"}
+                 "PAT":"RECO",
+                 "NANO":"PAT",
+                 "PATGEN":"GEN"}
 
     trimmedEvtType=options.evt_type.split('/')[-1]
 

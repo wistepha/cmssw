@@ -26,10 +26,13 @@
 #include "G4Step.hh"
 #include "G4LogicalVolumeStore.hh"
 #include "G4PhysicalVolumeStore.hh"
+#include "G4Track.hh"
+#include "G4TouchableHistory.hh"
 
-#include <vector>
-#include <string>
+#include <array>
 #include <map>
+#include <string>
+#include <vector>
 
 class HGCPassive : public SimProducer,
 		   public Observer<const BeginOfRun *>, 
@@ -39,34 +42,40 @@ class HGCPassive : public SimProducer,
   
 public:
   HGCPassive(const edm::ParameterSet &p);
-  virtual ~HGCPassive();
+  ~HGCPassive() override;
 
-  void produce(edm::Event&, const edm::EventSetup&);
+  void produce(edm::Event&, const edm::EventSetup&) override;
 
 private:
-  HGCPassive(const HGCPassive&); // stop default
-  const HGCPassive& operator=(const HGCPassive&);
+  HGCPassive(const HGCPassive&) = delete; // stop default
+  const HGCPassive& operator=(const HGCPassive&) = delete;
 
   // observer classes
-  void update(const BeginOfRun * run);
-  void update(const BeginOfEvent * evt);
-  void update(const G4Step * step);
+  void update(const BeginOfRun * run) override;
+  void update(const BeginOfEvent * evt) override;
+  void update(const G4Step * step) override;
   
   //void endOfEvent(edm::PassiveHitContainer &HGCEEAbsE);
   void endOfEvent(edm::PassiveHitContainer& hgcPH, unsigned int k);
+
+  typedef std::map<G4LogicalVolume*,std::pair<unsigned int,std::string>>::iterator volumeIterator;
   G4VPhysicalVolume * getTopPV();
-  std::map<G4LogicalVolume*,std::pair<unsigned int,std::string>>::iterator findLV(G4LogicalVolume * plv);
+  volumeIterator      findLV(G4LogicalVolume * plv);
+  void storeInfo(const volumeIterator itr, G4LogicalVolume* plv, 
+		 unsigned int copy, double time, double energy, bool flag);
 
 private:
 
   std::vector<std::string> LVNames_;
   G4VPhysicalVolume       *topPV_; 
+  G4LogicalVolume         *topLV_;
   std::map<G4LogicalVolume*,std::pair<unsigned int,std::string>> mapLV_;
+  std::string              motherName_;
   
   // some private members for ananlysis 
   unsigned int              count_;                  
   bool                      init_;
-  std::map<std::pair<G4LogicalVolume*,unsigned int>,std::pair<double,double>> store_;
+  std::map<std::pair<G4LogicalVolume*,unsigned int>,std::array<double,3>> store_;
 };
 
 

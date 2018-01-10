@@ -18,6 +18,11 @@
 #include "FWCore/Framework/interface/stream/EDFilterAdaptorBase.h"
 #include "FWCore/Framework/interface/stream/EDAnalyzerAdaptorBase.h"
 
+#include "FWCore/Framework/interface/limited/EDProducerBase.h"
+#include "FWCore/Framework/interface/limited/EDFilterBase.h"
+#include "FWCore/Framework/interface/limited/EDAnalyzerBase.h"
+#include "FWCore/Framework/interface/limited/OutputModuleBase.h"
+
 #include <type_traits>
 
 namespace edm{
@@ -39,6 +44,21 @@ namespace edm{
 
     template<>
     struct has_stream_functions<edm::global::EDAnalyzerBase> {
+      static bool constexpr value = true;
+    };
+
+    template<>
+    struct has_stream_functions<edm::limited::EDProducerBase> {
+      static bool constexpr value = true;
+    };
+    
+    template<>
+    struct has_stream_functions<edm::limited::EDFilterBase> {
+      static bool constexpr value = true;
+    };
+    
+    template<>
+    struct has_stream_functions<edm::limited::EDAnalyzerBase> {
       static bool constexpr value = true;
     };
 
@@ -100,11 +120,32 @@ namespace edm{
   WorkerT<T>::WorkerT(std::shared_ptr<T> ed, ModuleDescription const& md, ExceptionToActionTable const* actions) :
     Worker(md, actions),
     module_(ed) {
-    assert(module_ != 0);
+    assert(module_ != nullptr);
   }
 
   template<typename T>
   WorkerT<T>::~WorkerT() {
+  }
+
+  
+  template<typename T>
+  bool WorkerT<T>::wantsGlobalRuns() const {
+    return module_->wantsGlobalRuns();
+  }
+  
+  template<typename T>
+  bool WorkerT<T>::wantsGlobalLuminosityBlocks() const {
+    return module_->wantsGlobalLuminosityBlocks();
+  }
+
+  template<typename T>
+  bool WorkerT<T>::wantsStreamRuns() const {
+    return module_->wantsStreamRuns();
+  }
+  
+  template<typename T>
+  bool WorkerT<T>::wantsStreamLuminosityBlocks() const {
+    return module_->wantsStreamLuminosityBlocks();
   }
 
   template<typename T>
@@ -117,13 +158,71 @@ namespace edm{
 
   template<typename T>
   inline
+  void
+  WorkerT<T>::implDoAcquire(EventPrincipal const&, EventSetup const&,
+                            ModuleCallingContext const*,
+                            WaitingTaskWithArenaHolder&) {
+  }
+
+  template<>
+  inline
+  void
+  WorkerT<global::EDProducerBase>::implDoAcquire(EventPrincipal const& ep, EventSetup const& c,
+                                                 ModuleCallingContext const* mcc,
+                                                 WaitingTaskWithArenaHolder& holder) {
+    module_->doAcquire(ep, c, activityRegistry(), mcc, holder);
+  }
+
+  template<>
+  inline
+  void
+  WorkerT<global::EDFilterBase>::implDoAcquire(EventPrincipal const& ep, EventSetup const& c,
+                                               ModuleCallingContext const* mcc,
+                                               WaitingTaskWithArenaHolder& holder) {
+    module_->doAcquire(ep, c, activityRegistry(), mcc, holder);
+  }
+
+  template<>
+  inline
+  void
+  WorkerT<stream::EDProducerAdaptorBase>::implDoAcquire(EventPrincipal const& ep, EventSetup const& c,
+                                                        ModuleCallingContext const* mcc,
+                                                        WaitingTaskWithArenaHolder& holder) {
+    module_->doAcquire(ep, c, activityRegistry(), mcc, holder);
+  }
+
+  template<>
+  inline
+  void
+  WorkerT<stream::EDFilterAdaptorBase>::implDoAcquire(EventPrincipal const& ep, EventSetup const& c,
+                                                      ModuleCallingContext const* mcc,
+                                                      WaitingTaskWithArenaHolder& holder) {
+    module_->doAcquire(ep, c, activityRegistry(), mcc, holder);
+  }
+
+  template<typename T>
+  inline
+  bool
+  WorkerT<T>::implNeedToRunSelection() const { return false;}
+
+  template<typename T>
+  inline
   bool
   WorkerT<T>::implDoPrePrefetchSelection(StreamID id,
                                          EventPrincipal const& ep,
                                          ModuleCallingContext const* mcc) {
     return true;
   }
+  template<typename T>
+  inline
+  void
+  WorkerT<T>::itemsToGetForSelection(std::vector<ProductResolverIndexAndSkipBit>&) const {}
 
+
+  template<>
+  inline
+  bool
+  WorkerT<OutputModule>::implNeedToRunSelection() const { return true;}
   template<>
   inline
   bool
@@ -132,6 +231,17 @@ namespace edm{
                                                     ModuleCallingContext const* mcc) {
     return module_->prePrefetchSelection(id,ep,mcc);
   }
+  template<>
+  inline
+  void
+  WorkerT<OutputModule>::itemsToGetForSelection(std::vector<ProductResolverIndexAndSkipBit>& iItems) const {
+    iItems = module_->productsUsedBySelection();
+  }
+
+  template<>
+  inline
+  bool
+  WorkerT<edm::one::OutputModuleBase>::implNeedToRunSelection() const { return true;}
 
   template<>
   inline
@@ -141,7 +251,17 @@ namespace edm{
                                                                   ModuleCallingContext const* mcc) {
     return module_->prePrefetchSelection(id,ep,mcc);
   }
+  template<>
+  inline
+  void
+  WorkerT<edm::one::OutputModuleBase>::itemsToGetForSelection(std::vector<ProductResolverIndexAndSkipBit>& iItems) const {
+    iItems = module_->productsUsedBySelection();
+  }
 
+  template<>
+  inline
+  bool
+  WorkerT<edm::global::OutputModuleBase>::implNeedToRunSelection() const { return true;}
   template<>
   inline
   bool
@@ -149,6 +269,31 @@ namespace edm{
                                                                      EventPrincipal const& ep,
                                                                      ModuleCallingContext const* mcc) {
     return module_->prePrefetchSelection(id,ep,mcc);
+  }
+  template<>
+  inline
+  void
+  WorkerT<edm::global::OutputModuleBase>::itemsToGetForSelection(std::vector<ProductResolverIndexAndSkipBit>& iItems) const {
+    iItems = module_->productsUsedBySelection();
+  }
+
+  template<>
+  inline
+  bool
+  WorkerT<edm::limited::OutputModuleBase>::implNeedToRunSelection() const { return true;}
+  template<>
+  inline
+  bool
+  WorkerT<edm::limited::OutputModuleBase>::implDoPrePrefetchSelection(StreamID id,
+                                                                     EventPrincipal const& ep,
+                                                                     ModuleCallingContext const* mcc) {
+    return module_->prePrefetchSelection(id,ep,mcc);
+  }
+  template<>
+  inline
+  void
+  WorkerT<edm::limited::OutputModuleBase>::itemsToGetForSelection(std::vector<ProductResolverIndexAndSkipBit>& iItems) const {
+    iItems = module_->productsUsedBySelection();
   }
 
   template<typename T>
@@ -343,22 +488,6 @@ namespace edm{
   template<typename T>
   inline
   void
-  WorkerT<T>::implPreForkReleaseResources() {
-    module_->doPreForkReleaseResources();
-  }
-
-  template<typename T>
-  inline
-  void
-  WorkerT<T>::implPostForkReacquireResources(unsigned int iChildIndex,
-                                             unsigned int iNumberOfChildren) {
-    module_->doPostForkReacquireResources(iChildIndex, iNumberOfChildren);
-  }
-
-
-  template<typename T>
-  inline
-  void
   WorkerT<T>::implRegisterThinnedAssociations(ProductRegistry const& registry,
                                               ThinnedAssociationsHelper& helper) {
     module_->doRegisterThinnedAssociations(registry, helper);
@@ -366,32 +495,44 @@ namespace edm{
 
   template<typename T>
   inline
-  SerialTaskQueueChain* WorkerT<T>::serializeRunModule() {
-    return nullptr;
+  Worker::TaskQueueAdaptor WorkerT<T>::serializeRunModule() {
+    return Worker::TaskQueueAdaptor{};
   }
-  template<> SerialTaskQueueChain* WorkerT<EDAnalyzer>::serializeRunModule() {
+  template<> Worker::TaskQueueAdaptor WorkerT<EDAnalyzer>::serializeRunModule() {
     return &(module_->sharedResourcesAcquirer().serialQueueChain());
   }
-  template<> SerialTaskQueueChain* WorkerT<EDFilter>::serializeRunModule() {
+  template<> Worker::TaskQueueAdaptor WorkerT<EDFilter>::serializeRunModule() {
     return &(module_->sharedResourcesAcquirer().serialQueueChain());
   }
-  template<> SerialTaskQueueChain* WorkerT<EDProducer>::serializeRunModule() {
+  template<> Worker::TaskQueueAdaptor WorkerT<EDProducer>::serializeRunModule() {
     return &(module_->sharedResourcesAcquirer().serialQueueChain());
   }
-  template<> SerialTaskQueueChain* WorkerT<OutputModule>::serializeRunModule() {
+  template<> Worker::TaskQueueAdaptor WorkerT<OutputModule>::serializeRunModule() {
     return &(module_->sharedResourcesAcquirer().serialQueueChain());
   }
-  template<> SerialTaskQueueChain* WorkerT<one::EDAnalyzerBase>::serializeRunModule() {
+  template<> Worker::TaskQueueAdaptor WorkerT<one::EDAnalyzerBase>::serializeRunModule() {
     return &(module_->sharedResourcesAcquirer().serialQueueChain());
   }
-  template<> SerialTaskQueueChain* WorkerT<one::EDFilterBase>::serializeRunModule() {
+  template<> Worker::TaskQueueAdaptor WorkerT<one::EDFilterBase>::serializeRunModule() {
     return &(module_->sharedResourcesAcquirer().serialQueueChain());
   }
-  template<> SerialTaskQueueChain* WorkerT<one::EDProducerBase>::serializeRunModule() {
+  template<> Worker::TaskQueueAdaptor WorkerT<one::EDProducerBase>::serializeRunModule() {
     return &(module_->sharedResourcesAcquirer().serialQueueChain());
   }
-  template<> SerialTaskQueueChain* WorkerT<one::OutputModuleBase>::serializeRunModule() {
+  template<> Worker::TaskQueueAdaptor WorkerT<one::OutputModuleBase>::serializeRunModule() {
     return &(module_->sharedResourcesAcquirer().serialQueueChain());
+  }
+  template<> Worker::TaskQueueAdaptor WorkerT<limited::EDAnalyzerBase>::serializeRunModule() {
+    return &(module_->queue());
+  }
+  template<> Worker::TaskQueueAdaptor WorkerT<limited::EDFilterBase>::serializeRunModule() {
+    return &(module_->queue());
+  }
+  template<> Worker::TaskQueueAdaptor WorkerT<limited::EDProducerBase>::serializeRunModule() {
+    return &(module_->queue());
+  }
+  template<> Worker::TaskQueueAdaptor WorkerT<limited::OutputModuleBase>::serializeRunModule() {
+    return &(module_->queue());
   }
 
 
@@ -413,6 +554,11 @@ namespace edm{
     template<> bool mustPrefetchMayGet<edm::global::EDAnalyzerBase>() { return true;}
     template<> bool mustPrefetchMayGet<edm::global::OutputModuleBase>() { return true;}
 
+    template<> bool mustPrefetchMayGet<edm::limited::EDProducerBase>() { return true;}
+    template<> bool mustPrefetchMayGet<edm::limited::EDFilterBase>() { return true;}
+    template<> bool mustPrefetchMayGet<edm::limited::EDAnalyzerBase>() { return true;}
+    template<> bool mustPrefetchMayGet<edm::limited::OutputModuleBase>() { return true;}
+
     template<> bool mustPrefetchMayGet<edm::stream::EDProducerAdaptorBase>() { return true;}
     template<> bool mustPrefetchMayGet<edm::stream::EDFilterAdaptorBase>() { return true;}
     template<> bool mustPrefetchMayGet<edm::stream::EDAnalyzerAdaptorBase>() { return true;}
@@ -427,29 +573,31 @@ namespace edm{
   }
 
   namespace {
+    using ModuleToResolverIndicies = std::unordered_multimap<std::string,
+    std::tuple<edm::TypeID const*, const char*, edm::ProductResolverIndex>>;
     void resolvePutIndiciesImpl(void*,
                                 BranchType iBranchType,
-                                std::unordered_multimap<std::string, edm::ProductResolverIndex> const& iIndicies,
+                                ModuleToResolverIndicies const& iIndicies,
                                 std::string const& iModuleLabel) {
       //Do nothing
     }
 
     void resolvePutIndiciesImpl(ProducerBase* iProd,
                                 BranchType iBranchType,
-                                std::unordered_multimap<std::string, edm::ProductResolverIndex> const& iIndicies,
+                                ModuleToResolverIndicies const& iIndicies,
                                 std::string const& iModuleLabel) {
       iProd->resolvePutIndicies(iBranchType, iIndicies, iModuleLabel);
     }
 
     void resolvePutIndiciesImpl(edm::stream::EDProducerAdaptorBase* iProd,
                                 BranchType iBranchType,
-                                std::unordered_multimap<std::string, edm::ProductResolverIndex> const& iIndicies,
+                                ModuleToResolverIndicies const& iIndicies,
                                 std::string const& iModuleLabel) {
       iProd->resolvePutIndicies(iBranchType, iIndicies, iModuleLabel);
     }
     void resolvePutIndiciesImpl(edm::stream::EDFilterAdaptorBase* iProd,
                                 BranchType iBranchType,
-                                std::unordered_multimap<std::string, edm::ProductResolverIndex> const& iIndicies,
+                                ModuleToResolverIndicies const& iIndicies,
                                 std::string const& iModuleLabel) {
       iProd->resolvePutIndicies(iBranchType, iIndicies, iModuleLabel);
     }
@@ -476,7 +624,8 @@ namespace edm{
 
   template<typename T>
   void WorkerT<T>::resolvePutIndicies(BranchType iBranchType,
-                                      std::unordered_multimap<std::string, edm::ProductResolverIndex> const& iIndicies) {
+                                      std::unordered_multimap<std::string,
+                                      std::tuple<TypeID const*, const char*, edm::ProductResolverIndex>> const& iIndicies) {
     resolvePutIndiciesImpl(&module(), iBranchType,iIndicies, description().moduleLabel());
   }
 
@@ -514,6 +663,15 @@ namespace edm{
   template<>
   Worker::Types WorkerT<edm::global::OutputModuleBase>::moduleType() const { return Worker::kOutputModule;}
 
+  template<>
+  Worker::Types WorkerT<edm::limited::EDProducerBase>::moduleType() const { return Worker::kProducer;}
+  template<>
+  Worker::Types WorkerT<edm::limited::EDFilterBase>::moduleType() const { return Worker::kFilter;}
+  template<>
+  Worker::Types WorkerT<edm::limited::EDAnalyzerBase>::moduleType() const { return Worker::kAnalyzer;}
+  template<>
+  Worker::Types WorkerT<edm::limited::OutputModuleBase>::moduleType() const { return Worker::kOutputModule;}
+
 
   template<>
   Worker::Types WorkerT<edm::stream::EDProducerAdaptorBase>::moduleType() const { return Worker::kProducer;}
@@ -539,4 +697,8 @@ namespace edm{
   template class WorkerT<stream::EDProducerAdaptorBase>;
   template class WorkerT<stream::EDFilterAdaptorBase>;
   template class WorkerT<stream::EDAnalyzerAdaptorBase>;
+  template class WorkerT<limited::EDProducerBase>;
+  template class WorkerT<limited::EDFilterBase>;
+  template class WorkerT<limited::EDAnalyzerBase>;
+  template class WorkerT<limited::OutputModuleBase>;
 }

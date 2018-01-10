@@ -57,7 +57,7 @@ void RawToDigiConverter::RunCommon(const VFATFrameCollection &input, const Totem
   {
     TotemVFATStatus st;
     st.setMissing(true);
-    records[p.first] = { &p.second, NULL,  st };
+    records[p.first] = { &p.second, nullptr,  st };
   }
 
   // event error message buffer
@@ -95,7 +95,7 @@ void RawToDigiConverter::RunCommon(const VFATFrameCollection &input, const Totem
       if (verbosity > 0)
         fes << "    invalid footprint" << endl;
 
-      if ((testFootprint == tfErr))
+      if (testFootprint == tfErr)
       {
         record.status.setFootprintError();
         stopProcessing = true;
@@ -280,7 +280,7 @@ void RawToDigiConverter::Run(const VFATFrameCollection &coll, const TotemDAQMapp
     if (record.status.isOK())
     {
       const VFATFrame *fr = record.frame;
-      DiamondVFATFrame *diamondframe = (DiamondVFATFrame*) fr;
+      const DiamondVFATFrame *diamondframe = static_cast<const DiamondVFATFrame*>(fr);
 
       // update Event Counter in status
       record.status.setEC(record.frame->getEC() & 0xFF);
@@ -303,7 +303,7 @@ void RawToDigiConverter::PrintSummaries() const
   // print error summary
   if (printErrorSummary)
   {
-    if (errorSummary.size() > 0)
+    if (!errorSummary.empty())
     {
       stringstream ees;
       for (const auto &vit : errorSummary)
@@ -323,7 +323,7 @@ void RawToDigiConverter::PrintSummaries() const
   // print summary of unknown frames (found in data but not in the mapping)
   if (printUnknownFrameSummary)
   {
-    if (unknownSummary.size() > 0)
+    if (!unknownSummary.empty())
     {
       stringstream ees;
       for (const auto &it : unknownSummary)

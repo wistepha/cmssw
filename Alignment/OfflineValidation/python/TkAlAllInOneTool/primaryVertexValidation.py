@@ -1,21 +1,22 @@
 import os
 import configTemplates
 import globalDictionaries
-from genericValidation import GenericValidationData, ValidationWithPlots, pythonboolstring
+from genericValidation import GenericValidationData_CTSR, ValidationWithPlots, pythonboolstring
 from helperFunctions import replaceByMap
 from TkAlExceptions import AllInOneError
 
-class PrimaryVertexValidation(GenericValidationData, ValidationWithPlots):
+class PrimaryVertexValidation(GenericValidationData_CTSR, ValidationWithPlots):
     configBaseName  = "TkAlPrimaryVertexValidation"
     scriptBaseName  = "TkAlPrimaryVertexValidation"
     crabCfgBaseName = "TkAlPrimaryVertexValidation"
     resultBaseName  = "PrimaryVertexValidation"
     outputBaseName  = "PrimaryVertexValidation"
     defaults = {
-                "pvvalidationreference": ("/store/caf/user/musich/Alignment/TkAlPrimaryVertexValidation/Reference/PrimaryVertexValidation_test_pvvalidation_upgrade2017_design_mc_48bins.root"),
-                "doBPix":"True",
-                "doFPix":"True"
-               }
+        # N.B.: the reference needs to be updated each time the format of the output is changed
+        "pvvalidationreference": ("/store/group/alca_trackeralign/validation/PVValidation/Reference/PrimaryVertexValidation_phaseIMC92X_upgrade2017_Ideal.root"),
+        "doBPix":"True",
+        "doFPix":"True"
+        }
     mandatories = {"isda","ismc","runboundary","trackcollection","vertexcollection","lumilist","ptCut","etaCut","runControl","numberOfBins"}
     valType = "primaryvertex"
     def __init__(self, valName, alignment, config):
@@ -35,16 +36,25 @@ class PrimaryVertexValidation(GenericValidationData, ValidationWithPlots):
         return configTemplates.PrimaryVertexValidationTemplate
 
     @property
-    def TrackSelectionRefitting(self):
-        return configTemplates.SingleTrackRefitter
+    def DefinePath(self):
+        return configTemplates.PVValidationPath
+
+    @property
+    def ValidationSequence(self):
+        #never enters anywhere, since we use the custom DefinePath which includes the goodVertexSkim
+        return ""
+
+    @property
+    def use_d0cut(self):
+        return False
+
+    @property
+    def isPVValidation(self):
+        return True
 
     @property
     def ProcessName(self):
         return "PrimaryVertexValidation"
-
-    @property
-    def DefinePath(self):
-        return configTemplates.PVValidationPath
 
     def createScript(self, path):
         return super(PrimaryVertexValidation, self).createScript(path, template = configTemplates.PVValidationScriptTemplate)

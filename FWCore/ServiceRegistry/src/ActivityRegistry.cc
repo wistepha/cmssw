@@ -119,9 +119,6 @@ namespace edm {
      preSourceConstructionSignal_.connect(std::cref(iOther.preSourceConstructionSignal_));
      postSourceConstructionSignal_.connect(std::cref(iOther.postSourceConstructionSignal_));
 
-     preForkReleaseResourcesSignal_.connect(std::cref(iOther.preForkReleaseResourcesSignal_));
-     postForkReacquireResourcesSignal_.connect(std::cref(iOther.postForkReacquireResourcesSignal_));
-    
     preStreamEarlyTerminationSignal_.connect(std::cref(iOther.preStreamEarlyTerminationSignal_));
     preGlobalEarlyTerminationSignal_.connect(std::cref(iOther.preGlobalEarlyTerminationSignal_));
     preSourceEarlyTerminationSignal_.connect(std::cref(iOther.preSourceEarlyTerminationSignal_));
@@ -213,7 +210,10 @@ namespace edm {
 
     preModuleEventSignal_.connect(std::cref(iOther.preModuleEventSignal_));
      postModuleEventSignal_.connect(std::cref(iOther.postModuleEventSignal_));
-    
+
+     preModuleEventAcquireSignal_.connect(std::cref(iOther.preModuleEventAcquireSignal_));
+     postModuleEventAcquireSignal_.connect(std::cref(iOther.postModuleEventAcquireSignal_));
+
      preModuleEventDelayedGetSignal_.connect(std::cref(iOther.preModuleEventDelayedGetSignal_));
      postModuleEventDelayedGetSignal_.connect(std::cref(iOther.postModuleEventDelayedGetSignal_));
 
@@ -383,6 +383,9 @@ namespace edm {
     copySlotsToFrom(preModuleEventSignal_, iOther.preModuleEventSignal_);
     copySlotsToFromReverse(postModuleEventSignal_, iOther.postModuleEventSignal_);
 
+    copySlotsToFrom(preModuleEventAcquireSignal_, iOther.preModuleEventAcquireSignal_);
+    copySlotsToFromReverse(postModuleEventAcquireSignal_, iOther.postModuleEventAcquireSignal_);
+
     copySlotsToFrom(preModuleEventDelayedGetSignal_, iOther.preModuleEventDelayedGetSignal_);
     copySlotsToFromReverse(postModuleEventDelayedGetSignal_, iOther.postModuleEventDelayedGetSignal_);
 
@@ -432,8 +435,6 @@ namespace edm {
     copySlotsToFrom(preSourceConstructionSignal_, iOther.preSourceConstructionSignal_);
     copySlotsToFromReverse(postSourceConstructionSignal_, iOther.postSourceConstructionSignal_);
 
-    copySlotsToFrom(preForkReleaseResourcesSignal_, iOther.preForkReleaseResourcesSignal_);
-    copySlotsToFromReverse(postForkReacquireResourcesSignal_, iOther.postForkReacquireResourcesSignal_);
   }
 
   //

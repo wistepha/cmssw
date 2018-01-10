@@ -11,10 +11,10 @@
 
 #include <iostream>
 #include <iomanip>
-#include <stdio.h>
+#include <cstdio>
 #include <string>
 #include <sstream>
-#include <math.h>
+#include <cmath>
 #include <algorithm>
 
 //
@@ -37,6 +37,8 @@ L1TEGammaOffline::L1TEGammaOffline(const edm::ParameterSet& ps) :
             consumes < l1t::EGammaBxCollection > (ps.getParameter < edm::InputTag > ("stage2CaloLayer2EGammaSource"))),
         electronEfficiencyThresholds_(ps.getParameter < std::vector<double> > ("electronEfficiencyThresholds")),
         electronEfficiencyBins_(ps.getParameter < std::vector<double> > ("electronEfficiencyBins")),
+        probeToL1Offset_(ps.getParameter <double> ("probeToL1Offset")),
+        deepInspectionElectronThresholds_(ps.getParameter < std::vector<double> > ("deepInspectionElectronThresholds")),
         photonEfficiencyThresholds_(ps.getParameter < std::vector<double> > ("photonEfficiencyThresholds")),
         photonEfficiencyBins_(ps.getParameter < std::vector<double> > ("photonEfficiencyBins")),
         tagElectron_(),
@@ -91,7 +93,7 @@ void L1TEGammaOffline::analyze(edm::Event const& e, edm::EventSetup const& eSetu
   edm::Handle < reco::VertexCollection > vertexHandle;
   e.getByToken(thePVCollection_, vertexHandle);
   if (!vertexHandle.isValid()) {
-    edm::LogError("L1TEGammaOffline") << "invalid collection: vertex " << std::endl;
+    edm::LogWarning("L1TEGammaOffline") << "invalid collection: vertex " << std::endl;
     return;
   }
 
@@ -112,15 +114,15 @@ void L1TEGammaOffline::fillElectrons(edm::Event const& e, const unsigned int nVe
   e.getByToken(theGsfElectronCollection_, gsfElectrons);
 
   if (!gsfElectrons.isValid()) {
-    edm::LogError("L1TEGammaOffline") << "invalid collection: GSF electrons " << std::endl;
+    edm::LogWarning("L1TEGammaOffline") << "invalid collection: GSF electrons " << std::endl;
     return;
   }
-  if (gsfElectrons->size() == 0) {
+  if (gsfElectrons->empty()) {
     LogDebug("L1TEGammaOffline") << "empty collection: GSF electrons " << std::endl;
     return;
   }
   if (!l1EGamma.isValid()) {
-    //edm::LogError("L1TEGammaOffline") << "invalid collection: L1 EGamma " << std::endl;
+    edm::LogWarning("L1TEGammaOffline") << "invalid collection: L1 EGamma " << std::endl;
     return;
   }
   if (!findTagAndProbePair(gsfElectrons)) {
@@ -171,6 +173,27 @@ void L1TEGammaOffline::fillElectrons(edm::Event const& e, const unsigned int nVe
   // eta
   fill2DWithinLimits(h_L1EGammaEtavsElectronEta_, recoEta, l1Eta);
   fillWithinLimits(h_resolutionElectronEta_, resolutionEta);
+
+  // plots for deeper inspection
+  for (auto threshold : deepInspectionElectronThresholds_) {
+    fillWithinLimits(h_efficiencyElectronEta_total_[threshold], recoEta);
+    fillWithinLimits(h_efficiencyElectronPhi_total_[threshold], recoPhi);
+    fillWithinLimits(h_efficiencyElectronNVertex_total_[threshold], nVertex);
+    if(recoEt > threshold){
+      fillWithinLimits(h_efficiencyElectronEta_pass_[threshold], recoEta);
+      fillWithinLimits(h_efficiencyElectronPhi_pass_[threshold], recoPhi);
+      fillWithinLimits(h_efficiencyElectronNVertex_pass_[threshold], nVertex);
+    }
+  }
+
+  for (auto threshold : electronEfficiencyThresholds_) {
+    fill2DWithinLimits(h_efficiencyElectronPhi_vs_Eta_total_[threshold],
+      recoEta, recoPhi);
+    if(l1Et > threshold + probeToL1Offset_){
+      fill2DWithinLimits(h_efficiencyElectronPhi_vs_Eta_pass_[threshold],
+        recoEta, recoPhi);
+    }
+  }
 
   if (std::abs(recoEta) <= 1.479) { // barrel
     // et
@@ -359,15 +382,15 @@ void L1TEGammaOffline::fillPhotons(edm::Event const& e, const unsigned int nVert
   e.getByToken(thePhotonCollection_, photons);
 
   if (!photons.isValid()) {
-    edm::LogError("L1TEGammaOffline") << "invalid collection: reco::Photons " << std::endl;
+    edm::LogWarning("L1TEGammaOffline") << "invalid collection: reco::Photons " << std::endl;
     return;
   }
   if (!l1EGamma.isValid()) {
-    //  edm::LogError("L1TEGammaOffline") << "invalid collection: L1 EGamma " << std::endl;
+     edm::LogWarning("L1TEGammaOffline") << "invalid collection: L1 EGamma " << std::endl;
     return;
   }
 
-  if(photons->size() ==0){
+  if(photons->empty()){
     LogDebug("L1TEGammaOffline") << "No photons found in event." << std::endl;
     return;
   }
@@ -486,7 +509,7 @@ void L1TEGammaOffline::endRun(edm::Run const& run, edm::EventSetup const& eSetup
 void L1TEGammaOffline::bookElectronHistos(DQMStore::IBooker & ibooker)
 {
   ibooker.cd();
-  ibooker.setCurrentFolder(histFolder_.c_str());
+  ibooker.setCurrentFolder(histFolder_);
   h_nVertex_ = ibooker.book1D("nVertex", "Number of event vertices in collection", 40, -0.5, 39.5);
   h_tagAndProbeMass_ = ibooker.book1D("tagAndProbeMass", "Invariant mass of tag & probe pair", 100, 40, 140);
   // electron reco vs L1
@@ -538,7 +561,7 @@ void L1TEGammaOffline::bookElectronHistos(DQMStore::IBooker & ibooker)
       "electron #eta resolution  (EB); (L1 EGamma #eta - GSF Electron #eta)/GSF Electron #eta; events", 120, -0.3, 0.3);
 
   // electron turn-ons
-  ibooker.setCurrentFolder(efficiencyFolder_.c_str());
+  ibooker.setCurrentFolder(efficiencyFolder_);
   std::vector<float> electronBins(electronEfficiencyBins_.begin(), electronEfficiencyBins_.end());
   int nBins = electronBins.size() - 1;
   float* electronBinArray = &(electronBins[0]);
@@ -547,24 +570,56 @@ void L1TEGammaOffline::bookElectronHistos(DQMStore::IBooker & ibooker)
     std::string str_threshold = std::to_string(int(threshold));
     h_efficiencyElectronET_EB_pass_[threshold] = ibooker.book1D(
         "efficiencyElectronET_EB_threshold_" + str_threshold + "_Num",
-        "electron efficiency (EB); GSF Electron E_{T} (GeV); events", nBins, electronBinArray);
+        "electron efficiency (EB) (numerator); GSF Electron E_{T} (GeV); events", nBins, electronBinArray);
     h_efficiencyElectronET_EE_pass_[threshold] = ibooker.book1D(
         "efficiencyElectronET_EE_threshold_" + str_threshold + "_Num",
-        "electron efficiency (EE); GSF Electron E_{T} (GeV); events", nBins, electronBinArray);
+        "electron efficiency (EE) (numerator); GSF Electron E_{T} (GeV); events", nBins, electronBinArray);
     h_efficiencyElectronET_EB_EE_pass_[threshold] = ibooker.book1D(
         "efficiencyElectronET_EB_EE_threshold_" + str_threshold + "_Num",
-        "electron efficiency (EB+EE); GSF Electron E_{T} (GeV); events", nBins, electronBinArray);
+        "electron efficiency (EB+EE) (numerator); GSF Electron E_{T} (GeV); events", nBins, electronBinArray);
+    h_efficiencyElectronPhi_vs_Eta_pass_[threshold] = ibooker.book2D(
+      "efficiencyElectronPhi_vs_Eta_threshold_" + str_threshold + "_Num",
+      "electron efficiency (numerator); GSF Electron #eta; GSF Electron #phi",
+      50, -2.5, 2.5, 32, -3.2, 3.2);
 
     h_efficiencyElectronET_EB_total_[threshold] = ibooker.book1D(
         "efficiencyElectronET_EB_threshold_" + str_threshold + "_Den",
-        "electron efficiency (EB); GSF Electron E_{T} (GeV); events", nBins, electronBinArray);
+        "electron efficiency (EB) (denominator); GSF Electron E_{T} (GeV); events", nBins, electronBinArray);
     h_efficiencyElectronET_EE_total_[threshold] = ibooker.book1D(
         "efficiencyElectronET_EE_threshold_" + str_threshold + "_Den",
-        "electron efficiency (EE); GSF Electron E_{T} (GeV); events", nBins, electronBinArray);
+        "electron efficiency (EE) (denominator); GSF Electron E_{T} (GeV); events", nBins, electronBinArray);
     h_efficiencyElectronET_EB_EE_total_[threshold] = ibooker.book1D(
         "efficiencyElectronET_EB_EE_threshold_" + str_threshold + "_Den",
-        "electron efficiency (EB+EE); GSF Electron E_{T} (GeV); events", nBins, electronBinArray);
+        "electron efficiency (EB+EE) (denominator); GSF Electron E_{T} (GeV); events", nBins, electronBinArray);
+    h_efficiencyElectronPhi_vs_Eta_total_[threshold] = ibooker.book2D(
+        "efficiencyElectronPhi_vs_Eta_threshold_" + str_threshold + "_Den",
+        "electron efficiency (denominator); GSF Electron #eta; GSF Electron #phi",
+        50, -2.5, 2.5, 32, -3.2, 3.2);
   }
+
+  for (auto threshold: deepInspectionElectronThresholds_) {
+    std::string str_threshold = std::to_string(int(threshold));
+    h_efficiencyElectronEta_pass_[threshold] = ibooker.book1D(
+      "efficiencyElectronEta_threshold_" + str_threshold + "_Num",
+      "electron efficiency (numerator); GSF Electron #eta; events", 50, -2.5, 2.5);
+    h_efficiencyElectronPhi_pass_[threshold] = ibooker.book1D(
+      "efficiencyElectronPhi_threshold_" + str_threshold + "_Num",
+      "electron efficiency (numerator); GSF Electron #phi; events", 32, -3.2, 3.2);
+    h_efficiencyElectronNVertex_pass_[threshold] = ibooker.book1D(
+      "efficiencyElectronNVertex_threshold_" + str_threshold + "_Num",
+      "electron efficiency (numerator); Nvtx; events", 30, 0, 60);
+
+    h_efficiencyElectronEta_total_[threshold] = ibooker.book1D(
+      "efficiencyElectronEta_threshold_" + str_threshold + "_Den",
+      "electron efficiency (denominator); GSF Electron #eta; events", 50, -2.5, 2.5);
+    h_efficiencyElectronPhi_total_[threshold] = ibooker.book1D(
+      "efficiencyElectronPhi_threshold_" + str_threshold + "_Den",
+      "electron efficiency (denominator); GSF Electron #phi; events", 32, -3.2, 3.2);
+    h_efficiencyElectronNVertex_total_[threshold] = ibooker.book1D(
+      "efficiencyElectronNVertex_threshold_" + str_threshold + "_Den",
+      "electron efficiency (denominator); Nvtx; events", 30, 0, 60);
+  }
+
 
   ibooker.cd();
 }
@@ -572,7 +627,7 @@ void L1TEGammaOffline::bookElectronHistos(DQMStore::IBooker & ibooker)
 void L1TEGammaOffline::bookPhotonHistos(DQMStore::IBooker & ibooker)
 {
   ibooker.cd();
-  ibooker.setCurrentFolder(histFolder_.c_str());
+  ibooker.setCurrentFolder(histFolder_);
   h_L1EGammaETvsPhotonET_EB_ = ibooker.book2D("L1EGammaETvsPhotonET_EB",
       "L1 EGamma E_{T} vs  Photon E_{T} (EB);  Photon E_{T} (GeV); L1 EGamma E_{T} (GeV)", 300, 0, 300, 300, 0, 300);
   h_L1EGammaETvsPhotonET_EE_ = ibooker.book2D("L1EGammaETvsPhotonET_EE",
@@ -615,7 +670,7 @@ void L1TEGammaOffline::bookPhotonHistos(DQMStore::IBooker & ibooker)
       "photon #eta resolution  (EB); (L1 EGamma #eta -  Photon #eta)/ Photon #eta; events", 120, -0.3, 0.3);
 
   // photon turn-ons
-  ibooker.setCurrentFolder(efficiencyFolder_.c_str());
+  ibooker.setCurrentFolder(efficiencyFolder_);
   std::vector<float> photonBins(photonEfficiencyBins_.begin(), photonEfficiencyBins_.end());
   int nBins = photonBins.size() - 1;
   float* photonBinArray = &(photonBins[0]);
@@ -624,23 +679,23 @@ void L1TEGammaOffline::bookPhotonHistos(DQMStore::IBooker & ibooker)
     std::string str_threshold = std::to_string(int(threshold));
     h_efficiencyPhotonET_EB_pass_[threshold] = ibooker.book1D(
         "efficiencyPhotonET_EB_threshold_" + str_threshold + "_Num",
-        "photon efficiency (EB);  Photon E_{T} (GeV); events", nBins, photonBinArray);
+        "photon efficiency (EB) (numerator);  Photon E_{T} (GeV); events", nBins, photonBinArray);
     h_efficiencyPhotonET_EE_pass_[threshold] = ibooker.book1D(
         "efficiencyPhotonET_EE_threshold_" + str_threshold + "_Num",
-        "photon efficiency (EE);  Photon E_{T} (GeV); events", nBins, photonBinArray);
+        "photon efficiency (EE) (numerator);  Photon E_{T} (GeV); events", nBins, photonBinArray);
     h_efficiencyPhotonET_EB_EE_pass_[threshold] = ibooker.book1D(
         "efficiencyPhotonET_EB_EE_threshold_" + str_threshold + "_Num",
-        "photon efficiency (EB+EE);  Photon E_{T} (GeV); events", nBins, photonBinArray);
+        "photon efficiency (EB+EE) (numerator);  Photon E_{T} (GeV); events", nBins, photonBinArray);
 
     h_efficiencyPhotonET_EB_total_[threshold] = ibooker.book1D(
         "efficiencyPhotonET_EB_threshold_" + str_threshold + "_Den",
-        "photon efficiency (EB);  Photon E_{T} (GeV); events", nBins, photonBinArray);
+        "photon efficiency (EB) (denominator);  Photon E_{T} (GeV); events", nBins, photonBinArray);
     h_efficiencyPhotonET_EE_total_[threshold] = ibooker.book1D(
         "efficiencyPhotonET_EE_threshold_" + str_threshold + "_Den",
-        "photon efficiency (EE);  Photon E_{T} (GeV); events", nBins, photonBinArray);
+        "photon efficiency (EE) (denominator);  Photon E_{T} (GeV); events", nBins, photonBinArray);
     h_efficiencyPhotonET_EB_EE_total_[threshold] = ibooker.book1D(
         "efficiencyPhotonET_EB_EE_threshold_" + str_threshold + "_Den",
-        "photon efficiency (EB+EE);  Photon E_{T} (GeV); events", nBins, photonBinArray);
+        "photon efficiency (EB+EE) (denominator);  Photon E_{T} (GeV); events", nBins, photonBinArray);
   }
 
   ibooker.cd();

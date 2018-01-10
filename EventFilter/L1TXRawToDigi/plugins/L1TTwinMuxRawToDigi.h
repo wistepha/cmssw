@@ -35,10 +35,10 @@ public:
   L1TTwinMuxRawToDigi( const edm::ParameterSet& pset );
 
   /// Destructor
-  virtual ~L1TTwinMuxRawToDigi();
+  ~L1TTwinMuxRawToDigi() override;
 
   /// Produce digis out of raw data
-  void produce( edm::Event & e, const edm::EventSetup& c );
+  void produce( edm::Event & e, const edm::EventSetup& c ) override;
 
   /// Generate and fill FED raw data for a full event
   bool fillRawData( edm::Event& e,
@@ -71,8 +71,6 @@ private:
     LineFED_ += 8;
     ++lines;
   }
-
-  void calcCRC( long word, int & myC );
 
   edm::InputTag getDTTM7InputTag() { return DTTM7InputTag_; }
   

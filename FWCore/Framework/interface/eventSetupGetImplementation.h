@@ -31,8 +31,8 @@ namespace edm {
       template< class T>
       inline void eventSetupGetImplementation(EventSetup const& iEventSetup, T const*& iValue) {
          T const* temp = heterocontainer::find<EventSetupRecordKey, T const>(iEventSetup);
-         if(0 == temp) {
-            throw NoRecordException<T>(iovSyncValueFrom(iEventSetup), recordDoesExist(iEventSetup, EventSetupRecordKey::makeKey<T>()));
+         if(nullptr == temp) {
+            throw NoRecordException<T>(recordDoesExist(iEventSetup, EventSetupRecordKey::makeKey<T>()));
          }
          iValue = temp;
       }

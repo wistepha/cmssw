@@ -16,6 +16,7 @@
 #include <set>
 #include <string>
 #include <vector>
+#include <regex>
 
 #include "IOPool/Common/interface/RootServiceChecker.h"
 #include "FWCore/Framework/interface/Frameworkfwd.h"
@@ -39,7 +40,7 @@ namespace edm {
   public:
     enum DropMetaData { DropNone, DropDroppedPrior, DropPrior, DropAll };
     explicit PoolOutputModule(ParameterSet const& ps);
-    virtual ~PoolOutputModule();
+    ~PoolOutputModule() override;
     PoolOutputModule(PoolOutputModule const&) = delete; // Disallow copying and moving
     PoolOutputModule& operator=(PoolOutputModule const&) = delete; // Disallow copying and moving
     std::string const& fileName() const {return fileName_;}
@@ -107,30 +108,41 @@ namespace edm {
 
     typedef std::array<OutputItemList, NumBranchTypes> OutputItemListArray;
 
+    struct SpecialSplitLevelForBranch {
+      SpecialSplitLevelForBranch(std::string const& iBranchName, int iSplitLevel):
+      branch_(convert(iBranchName)),
+      splitLevel_(iSplitLevel < 1? 1: iSplitLevel) //minimum is 1
+      {}
+      bool match(std::string const& iBranchName) const;
+      std::regex convert(std::string const& iGlobBranchExpression )const;
+      
+      std::regex branch_;
+      int splitLevel_;
+    };
+    
     OutputItemListArray const& selectedOutputItemList() const {return selectedOutputItemList_;}
 
     BranchChildren const& branchChildren() const {return branchChildren_;}
 
   protected:
     ///allow inheriting classes to override but still be able to call this method in the overridden version
-    virtual bool shouldWeCloseFile() const override;
-    virtual void write(EventForOutput const& e) override;
+    bool shouldWeCloseFile() const override;
+    void write(EventForOutput const& e) override;
 
     virtual std::pair<std::string, std::string> physicalAndLogicalNameForNewFile();
     virtual void doExtrasAfterCloseFile();
   private:
-    virtual void preActionBeforeRunEventAsync(WaitingTask* iTask, ModuleCallingContext const& iModuleCallingContext, Principal const& iPrincipal) const override;
+    void preActionBeforeRunEventAsync(WaitingTask* iTask, ModuleCallingContext const& iModuleCallingContext, Principal const& iPrincipal) const override;
 
-    virtual void openFile(FileBlock const& fb) override;
-    virtual void respondToOpenInputFile(FileBlock const& fb) override;
-    virtual void respondToCloseInputFile(FileBlock const& fb) override;
-    virtual void writeLuminosityBlock(LuminosityBlockForOutput const& lb) override;
-    virtual void writeRun(RunForOutput const& r) override;
-    virtual void postForkReacquireResources(unsigned int iChildIndex, unsigned int iNumberOfChildren) override;
-    virtual bool isFileOpen() const override;
-    virtual void reallyOpenFile() override;
-    virtual void reallyCloseFile() override;
-    virtual void beginJob() override;
+    void openFile(FileBlock const& fb) override;
+    void respondToOpenInputFile(FileBlock const& fb) override;
+    void respondToCloseInputFile(FileBlock const& fb) override;
+    void writeLuminosityBlock(LuminosityBlockForOutput const& lb) override;
+    void writeRun(RunForOutput const& r) override;
+    bool isFileOpen() const override;
+    void reallyOpenFile();
+    void reallyCloseFile() override;
+    void beginJob() override;
 
     typedef std::map<BranchID, std::set<ParentageID> > BranchParents;
     void updateBranchParentsForOneBranch(ProductProvenanceRetriever const* provRetriever,
@@ -157,6 +169,7 @@ namespace edm {
     RootServiceChecker rootServiceChecker_;
     AuxItemArray auxItems_;
     OutputItemListArray selectedOutputItemList_;
+    std::vector<SpecialSplitLevelForBranch> specialSplitLevelForBranches_;
     std::string const fileName_;
     std::string const logicalFileName_;
     std::string const catalog_;

@@ -31,7 +31,7 @@ namespace edm {
     typedef EDAnalyzer ModuleType;
 
     EDAnalyzer();
-    virtual ~EDAnalyzer();
+    ~EDAnalyzer() override;
     
     std::string workerType() const {return "WorkerT<EDAnalyzer>";}
 
@@ -41,6 +41,11 @@ namespace edm {
 
     // Warning: the returned moduleDescription will be invalid during construction
     ModuleDescription const& moduleDescription() const { return moduleDescription_; }
+    
+    static bool wantsGlobalRuns() {return true;}
+    static bool wantsGlobalLuminosityBlocks() {return true;}
+    static bool wantsStreamRuns() {return false;}
+    static bool wantsStreamLuminosityBlocks() {return false;};
 
     void callWhenNewProductsRegistered(std::function<void(BranchDescription const&)> const& func);
 
@@ -64,8 +69,6 @@ namespace edm {
                               ModuleCallingContext const* mcc);
     void doRespondToOpenInputFile(FileBlock const& fb);
     void doRespondToCloseInputFile(FileBlock const& fb);
-    void doPreForkReleaseResources();
-    void doPostForkReacquireResources(unsigned int iChildIndex, unsigned int iNumberOfChildren);
     void doRegisterThinnedAssociations(ProductRegistry const&,
                                        ThinnedAssociationsHelper&) { }
 
@@ -84,8 +87,8 @@ namespace edm {
     virtual void endLuminosityBlock(LuminosityBlock const&, EventSetup const&){}
     virtual void respondToOpenInputFile(FileBlock const&) {}
     virtual void respondToCloseInputFile(FileBlock const&) {}
-    virtual void preForkReleaseResources() {}
-    virtual void postForkReacquireResources(unsigned int /*iChildIndex*/, unsigned int /*iNumberOfChildren*/) {}
+
+    bool hasAcquire() const { return false; }
 
     void setModuleDescription(ModuleDescription const& md) {
       moduleDescription_ = md;

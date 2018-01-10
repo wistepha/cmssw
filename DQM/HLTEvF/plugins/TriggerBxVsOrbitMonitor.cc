@@ -2,11 +2,6 @@
 #include <string>
 #include <cstring>
 
-// boost headers
-#include <boost/regex.hpp>
-#include <boost/format.hpp>
-#include <boost/lexical_cast.hpp>
-
 // Root headers
 #include <TH1F.h>
 
@@ -34,37 +29,17 @@
 #include "DQMServices/Core/interface/DQMEDAnalyzer.h"
 #include "DQMServices/Core/interface/MonitorElement.h"
 
-// helper functions
-template <typename T>
-static
-const T & get(const edm::Event & event, const edm::EDGetTokenT<T> & token) {
-  edm::Handle<T> handle;
-  event.getByToken(token, handle);
-  if (not handle.isValid())
-    throw * handle.whyFailed();
-  return * handle.product();
-}
-
-template <typename R, typename T>
-static
-const T & get(const edm::EventSetup & setup) {
-  edm::ESHandle<T> handle;
-  setup.get<R>().get(handle);
-  return * handle.product();
-}
-
-
 class TriggerBxVsOrbitMonitor : public DQMEDAnalyzer {
 public:
   explicit TriggerBxVsOrbitMonitor(edm::ParameterSet const &);
-  ~TriggerBxVsOrbitMonitor() = default;
+  ~TriggerBxVsOrbitMonitor() override = default;
 
   static void fillDescriptions(edm::ConfigurationDescriptions & descriptions);
 
 private:
-  virtual void dqmBeginRun(edm::Run const &, edm::EventSetup const &) override;
-  virtual void bookHistograms(DQMStore::IBooker &, edm::Run const &, edm::EventSetup const &) override;
-  virtual void analyze(edm::Event const &, edm::EventSetup const &) override;
+  void dqmBeginRun(edm::Run const &, edm::EventSetup const &) override;
+  void bookHistograms(DQMStore::IBooker &, edm::Run const &, edm::EventSetup const &) override;
+  void analyze(edm::Event const &, edm::EventSetup const &) override;
 
   // number of bunch crossings
   static const unsigned int s_bx_range = 3564;
@@ -173,7 +148,7 @@ void TriggerBxVsOrbitMonitor::bookHistograms(DQMStore::IBooker & booker, edm::Ru
     m_orbit_bx_all->SetCanExtend(TH1::kAllAxes);
     
     for (unsigned int i = 0; i < nLS; ++i) {
-      std::string iname = boost::lexical_cast<std::string>(i);
+      std::string iname = std::to_string(i);
       m_orbit_bx_all_byLS.at(i) = booker.book2D("OrbitVsBX_LS"+iname, "OrbitVsBX_LS"+iname, nBX, float(m_minBX)-0.5, float(m_maxBX)+0.5, s_orbit_range+1, -0.5, float(s_orbit_range)+0.5)->getTH2F();
       m_orbit_bx_all_byLS.at(i)->GetXaxis()->SetTitle("BX");
       m_orbit_bx_all_byLS.at(i)->GetYaxis()->SetTitle("orbit");
@@ -202,7 +177,6 @@ void TriggerBxVsOrbitMonitor::analyze(edm::Event const & event, edm::EventSetup 
   int iLS = ls-m_minLS;
   if (iLS >= 0 && iLS < int(m_orbit_bx_all_byLS.size()))
     m_orbit_bx_all_byLS.at(iLS)->Fill(bx,orbit_in_ls);
- 
 
   // monitor the bx distribution for the TCDS trigger types
   size_t size = sizeof(s_tcds_trigger_types) / sizeof(const char *);

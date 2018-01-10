@@ -8,8 +8,10 @@ patElectrons = cms.EDProducer("PATElectronProducer",
     useParticleFlow  =  cms.bool( False ),
     pfElectronSource = cms.InputTag("particleFlow"),
     pfCandidateMap = cms.InputTag("particleFlow:electrons"),
+    usePfCandidateMultiMap = cms.bool( False ),
 
     # collections for mva input variables
+    addMVAVariables = cms.bool( True ),
     reducedBarrelRecHitCollection = cms.InputTag("reducedEcalRecHitsEB"),
     reducedEndcapRecHitCollection = cms.InputTag("reducedEcalRecHitsEE"),
 
@@ -40,7 +42,7 @@ patElectrons = cms.EDProducer("PATElectronProducer",
 
     # embedding of AOD items
     embedGsfElectronCore = cms.bool(True),  ## embed in AOD externally stored gsf electron core
-    embedGsfTrack        = cms.bool(True),  ## embed in AOD externally stored gsf track
+    embedGsfTrack        = cms.bool(False),  ## embed in AOD externally stored gsf track
     embedSuperCluster    = cms.bool(True),  ## embed in AOD externally stored supercluster
     embedPflowSuperCluster         = cms.bool(True),  ## embed in AOD externally stored supercluster
     embedSeedCluster               = cms.bool(True),  ## embed in AOD externally stored the electron's seedcluster 

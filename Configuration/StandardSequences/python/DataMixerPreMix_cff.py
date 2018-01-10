@@ -42,6 +42,7 @@ DMHcalTTPDigis = simHcalTTPDigis.clone()
 
 # Re-define inputs to point at DataMixer output
 DMHcalTriggerPrimitiveDigis.inputLabel = cms.VInputTag(cms.InputTag('mixData'),cms.InputTag('mixData'))
+DMHcalTriggerPrimitiveDigis.inputUpgradeLabel = cms.VInputTag(cms.InputTag('mixData:HBHEQIE11DigiCollection'),cms.InputTag('mixData:HFQIE10DigiCollection'))
 DMHcalDigis.digiLabel = cms.string('mixData')
 DMHcalTTPDigis.HFDigiCollection = cms.InputTag("mixData")
 
@@ -63,9 +64,9 @@ from SimGeneral.PileupInformation.AddPileupSummaryPreMixed_cfi import *
 pdatamix = cms.Sequence(mixData+postDMDigi+addPileupInfo)
 
 from Configuration.Eras.Modifier_fastSim_cff import fastSim
-if fastSim.isChosen():
+def _fastSimDigis(process):
     # pretend these digis have been through digi2raw and raw2digi, by using the approprate aliases
     # use an alias to make the mixed track collection available under the usual label
     from FastSimulation.Configuration.DigiAliases_cff import loadDigiAliases
-    loadDigiAliases(premix = True)
-    from FastSimulation.Configuration.DigiAliases_cff import generalTracks,ecalPreshowerDigis,ecalDigis,hcalDigis,muonDTDigis,muonCSCDigis,muonRPCDigis
+    loadDigiAliases(process, premix=True)
+modifyDataMixerPreMix_fastSimDigis = fastSim.makeProcessModifier(_fastSimDigis)
